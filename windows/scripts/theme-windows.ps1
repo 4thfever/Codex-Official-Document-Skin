@@ -183,6 +183,19 @@ function Write-DreamSkinTheme {
   Write-DreamSkinUtf8FileAtomically -Path $themePath -Content ($json + "`r`n")
 }
 
+function Test-DreamSkinLegacyDocumentPreset {
+  param([AllowNull()][object]$Theme)
+  if ($null -eq $Theme -or "$($Theme.id)" -cne 'preset-codex-document') { return $false }
+  $document = $Theme.document
+  if ($null -eq $document) { return $false }
+  # This is the exact shape written by the pre-document-shell preset. Do not
+  # replace a theme once a user has supplied any of the document copy fields.
+  return "$($document.masthead)" -ceq 'CODEX' -and
+    $null -eq $document.greeting -and
+    $null -eq $document.closing -and
+    $null -eq $document.signature
+}
+
 function Initialize-DreamSkinThemeStore {
   param(
     [Parameter(Mandatory = $true)][string]$SkillRoot,
@@ -201,9 +214,19 @@ function Initialize-DreamSkinThemeStore {
   $documentSourceImage = Join-Path $documentSource 'background.jpg'
   Assert-DreamSkinNoReparseComponents -Path $documentDirectory
   Assert-DreamSkinNoReparseComponents -Path $documentTheme
-  if ((Test-Path -LiteralPath $documentSourceTheme -PathType Leaf) -and
-    (Test-Path -LiteralPath $documentSourceImage -PathType Leaf) -and
-    -not (Test-Path -LiteralPath $documentTheme -PathType Leaf)) {
+  $hasDocumentSource = (Test-Path -LiteralPath $documentSourceTheme -PathType Leaf) -and
+    (Test-Path -LiteralPath $documentSourceImage -PathType Leaf)
+  $shouldSeedDocument = $hasDocumentSource -and -not (Test-Path -LiteralPath $documentTheme -PathType Leaf)
+  $shouldMigrateLegacyDocument = $false
+  if ($hasDocumentSource -and -not $shouldSeedDocument) {
+    try {
+      $existingDocument = Read-DreamSkinTheme -ThemeDirectory $documentDirectory
+      $shouldMigrateLegacyDocument = Test-DreamSkinLegacyDocumentPreset -Theme $existingDocument.Theme
+    } catch {
+      throw "Existing CODEX Document preset cannot be read safely: $($_.Exception.Message)"
+    }
+  }
+  if ($shouldSeedDocument -or $shouldMigrateLegacyDocument) {
     Ensure-DreamSkinManagedDirectory -Path $documentDirectory -Root $paths.Root
     $documentImage = Join-Path $documentDirectory 'background.jpg'
     Assert-DreamSkinNoReparseComponents -Path $documentImage

@@ -652,6 +652,33 @@ try {
     [System.IO.Path]::GetExtension($initialTheme.ImagePath) -cne '.jpg') {
     throw 'Default Windows theme did not seed the CODEX Document contract.'
   }
+
+  $legacyDocumentTheme = [pscustomobject]@{
+    schemaVersion = 2
+    id = 'preset-codex-document'
+    name = 'CODEX Document'
+    mode = 'codex-document'
+    image = 'background.jpg'
+    appearance = 'light'
+    art = [pscustomobject]@{ focusX = 0.5; focusY = 0.5; safeArea = 'none'; taskMode = 'off' }
+    document = [pscustomobject]@{
+      masthead = 'CODEX'
+      footer = 'CODEX / Response'
+      accent = '#A80000'
+      surface = '#F8F7F2'
+      text = '#1D1D1D'
+      border = '#C9C3BA'
+    }
+  }
+  Write-DreamSkinTheme -ThemeDirectory (Join-Path $themePaths.Saved 'preset-codex-document') -Theme $legacyDocumentTheme
+  $null = Initialize-DreamSkinThemeStore -SkillRoot $Root -StateRoot $themeStateRoot
+  $migratedTheme = Read-DreamSkinTheme -ThemeDirectory $themePaths.Active
+  if ($migratedTheme.Theme.document.masthead -cne '美国科代克斯技术服务有限公司' -or
+    $migratedTheme.Theme.document.greeting -cne '尊敬的董事长：' -or
+    $migratedTheme.Theme.document.signature -cne 'Codex小助手') {
+    throw 'Legacy CODEX Document preset was not migrated to the document-shell defaults.'
+  }
+
   $null = Initialize-DreamSkinThemeStore -SkillRoot $Root -StateRoot $themeStateRoot
   $idempotentTheme = Read-DreamSkinTheme -ThemeDirectory $themePaths.Active
   if ($idempotentTheme.Theme.id -cne 'preset-codex-document' -or
