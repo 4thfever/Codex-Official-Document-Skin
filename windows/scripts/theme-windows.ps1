@@ -192,70 +192,37 @@ function Initialize-DreamSkinThemeStore {
   foreach ($directory in @($paths.Root, $paths.Active, $paths.Saved, $paths.Images)) {
     Ensure-DreamSkinManagedDirectory -Path $directory -Root $paths.Root
   }
-  $assetRoot = Join-Path $SkillRoot 'assets'
-  $assetImage = Join-Path $assetRoot 'dream-reference.jpg'
-  Assert-DreamSkinImageFile -Path $assetImage
+  # CODEX Document is the only supported visual mode. Its image is a validated
+  # theme-store placeholder; document mode never paints full-window artwork.
+  $documentSource = Join-Path $SkillRoot 'presets\preset-codex-document'
+  $documentDirectory = Join-Path $paths.Saved 'preset-codex-document'
+  $documentTheme = Join-Path $documentDirectory 'theme.json'
+  $documentSourceTheme = Join-Path $documentSource 'theme.json'
+  $documentSourceImage = Join-Path $documentSource 'background.jpg'
+  Assert-DreamSkinNoReparseComponents -Path $documentDirectory
+  Assert-DreamSkinNoReparseComponents -Path $documentTheme
+  if ((Test-Path -LiteralPath $documentSourceTheme -PathType Leaf) -and
+    (Test-Path -LiteralPath $documentSourceImage -PathType Leaf) -and
+    -not (Test-Path -LiteralPath $documentTheme -PathType Leaf)) {
+    Ensure-DreamSkinManagedDirectory -Path $documentDirectory -Root $paths.Root
+    $documentImage = Join-Path $documentDirectory 'background.jpg'
+    Assert-DreamSkinNoReparseComponents -Path $documentImage
+    Assert-DreamSkinImageFile -Path $documentSourceImage
+    Copy-Item -LiteralPath $documentSourceImage -Destination $documentImage -Force
+    Assert-DreamSkinNoReparseComponents -Path $documentImage
+    Assert-DreamSkinImageFile -Path $documentImage
+    Assert-DreamSkinNoReparseComponents -Path $documentTheme
+    Copy-Item -LiteralPath $documentSourceTheme -Destination $documentTheme -Force
+  }
+  $sourceDocument = Read-DreamSkinTheme -ThemeDirectory $documentDirectory
+  $activeImage = Join-Path $paths.Active 'background.jpg'
   $activeTheme = Join-Path $paths.Active 'theme.json'
+  Assert-DreamSkinNoReparseComponents -Path $activeImage
+  Copy-Item -LiteralPath $sourceDocument.ImagePath -Destination $activeImage -Force
+  Assert-DreamSkinNoReparseComponents -Path $activeImage
+  Assert-DreamSkinImageFile -Path $activeImage
   Assert-DreamSkinNoReparseComponents -Path $activeTheme
-  if (-not (Test-Path -LiteralPath $activeTheme -PathType Leaf)) {
-    Ensure-DreamSkinManagedDirectory -Path $paths.Active -Root $paths.Root
-    Assert-DreamSkinNoReparseComponents -Path (Join-Path $paths.Active 'dream-reference.jpg')
-    $activeImage = Join-Path $paths.Active 'dream-reference.jpg'
-    Copy-Item -LiteralPath (Join-Path $assetRoot 'dream-reference.jpg') `
-      -Destination $activeImage -Force
-    Assert-DreamSkinNoReparseComponents -Path $activeImage
-    Assert-DreamSkinImageFile -Path $activeImage
-    $imageArchive = Join-Path $paths.Images 'dream-reference.jpg'
-    Assert-DreamSkinNoReparseComponents -Path $imageArchive
-    Copy-Item -LiteralPath (Join-Path $assetRoot 'dream-reference.jpg') `
-      -Destination $imageArchive -Force
-    Assert-DreamSkinNoReparseComponents -Path $imageArchive
-    Assert-DreamSkinImageFile -Path $imageArchive
-    Assert-DreamSkinNoReparseComponents -Path $activeTheme
-    Copy-Item -LiteralPath (Join-Path $assetRoot 'theme.json') -Destination $activeTheme -Force
-  }
-  $retiredPresetDirectory = Join-Path $paths.Saved 'preset-romantic-rose'
-  Assert-DreamSkinNoReparseComponents -Path $retiredPresetDirectory
-  if (Test-Path -LiteralPath $retiredPresetDirectory) {
-    Remove-Item -LiteralPath $retiredPresetDirectory -Recurse -Force
-  }
-  # Bundled Arina Hashimoto (default active wallpaper lives under assets/).
-  $presetDirectory = Join-Path $paths.Saved 'preset-arina-hashimoto'
-  $presetTheme = Join-Path $presetDirectory 'theme.json'
-  Assert-DreamSkinNoReparseComponents -Path $presetDirectory
-  Assert-DreamSkinNoReparseComponents -Path $presetTheme
-  if (-not (Test-Path -LiteralPath $presetTheme -PathType Leaf)) {
-    Ensure-DreamSkinManagedDirectory -Path $presetDirectory -Root $paths.Root
-    $presetImage = Join-Path $presetDirectory 'dream-reference.jpg'
-    Assert-DreamSkinNoReparseComponents -Path $presetImage
-    Copy-Item -LiteralPath (Join-Path $assetRoot 'dream-reference.jpg') `
-      -Destination $presetImage -Force
-    Assert-DreamSkinNoReparseComponents -Path $presetImage
-    Assert-DreamSkinImageFile -Path $presetImage
-    Assert-DreamSkinNoReparseComponents -Path $presetTheme
-    Copy-Item -LiteralPath (Join-Path $assetRoot 'theme.json') -Destination $presetTheme -Force
-  }
-  # Bundled Gothic Void Crusade (same pack as macOS presets/).
-  $gothicSource = Join-Path $SkillRoot 'presets\preset-gothic-void-crusade'
-  $gothicDirectory = Join-Path $paths.Saved 'preset-gothic-void-crusade'
-  $gothicTheme = Join-Path $gothicDirectory 'theme.json'
-  $gothicSourceTheme = Join-Path $gothicSource 'theme.json'
-  $gothicSourceImage = Join-Path $gothicSource 'background.jpg'
-  Assert-DreamSkinNoReparseComponents -Path $gothicDirectory
-  Assert-DreamSkinNoReparseComponents -Path $gothicTheme
-  if ((Test-Path -LiteralPath $gothicSourceTheme -PathType Leaf) -and
-    (Test-Path -LiteralPath $gothicSourceImage -PathType Leaf) -and
-    -not (Test-Path -LiteralPath $gothicTheme -PathType Leaf)) {
-    Ensure-DreamSkinManagedDirectory -Path $gothicDirectory -Root $paths.Root
-    $gothicImage = Join-Path $gothicDirectory 'background.jpg'
-    Assert-DreamSkinNoReparseComponents -Path $gothicImage
-    Assert-DreamSkinImageFile -Path $gothicSourceImage
-    Copy-Item -LiteralPath $gothicSourceImage -Destination $gothicImage -Force
-    Assert-DreamSkinNoReparseComponents -Path $gothicImage
-    Assert-DreamSkinImageFile -Path $gothicImage
-    Assert-DreamSkinNoReparseComponents -Path $gothicTheme
-    Copy-Item -LiteralPath $gothicSourceTheme -Destination $gothicTheme -Force
-  }
+  Copy-Item -LiteralPath $documentTheme -Destination $activeTheme -Force
   $null = Read-DreamSkinTheme -ThemeDirectory $paths.Active
   return $paths
 }

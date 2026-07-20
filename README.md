@@ -11,6 +11,8 @@
 
 本项目为非官方工具，与 OpenAI 无关。
 
+实现范围、交互边界和验收标准见 [CODEX Document Mode Specification](./docs/codex-document-mode-spec.md)。
+
 ## 致谢
 
 - [Codex-Dream-Skin](https://github.com/Fei-Away/Codex-Dream-Skin/tree/main)

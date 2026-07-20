@@ -25,7 +25,7 @@ try {
 
   $notify = [System.Windows.Forms.NotifyIcon]::new()
   $notify.Icon = [System.Drawing.SystemIcons]::Application
-  $notify.Text = 'Codex Dream Skin'
+  $notify.Text = 'Codex Dream Skin - 点击打开主题控制'
   $notify.Visible = $true
   $menu = [System.Windows.Forms.ContextMenuStrip]::new()
   $notify.ContextMenuStrip = $menu
@@ -73,12 +73,8 @@ try {
     $paused = Test-DreamSkinPaused -StateRoot $StateRoot
     $state = $null
     try { $state = Read-DreamSkinState -Path $paths.State } catch {}
-    $active = $null
-    try { $active = Read-DreamSkinTheme -ThemeDirectory $paths.Active -SkipImageMetadata } catch {}
     $status = if ($paused) { '状态：已暂停' } elseif ($state) { '状态：运行中' } else { '状态：未运行' }
-    if ($null -ne $active -and $null -ne $active.Theme -and $active.Theme.name) {
-      $status += " · $($active.Theme.name)"
-    }
+    $status += ' · CODEX Document'
     $null = Add-DreamSkinTrayItem -Items $menu.Items -Text $status -Action $null -Enabled $false
     [void]$menu.Items.Add([System.Windows.Forms.ToolStripSeparator]::new())
 
@@ -135,52 +131,6 @@ try {
         }
       }
     }
-    $null = Add-DreamSkinTrayItem -Items $menu.Items -Text '更换背景图' -Action {
-      $dialog = [System.Windows.Forms.OpenFileDialog]::new()
-      $dialog.Title = '选择 Codex Dream Skin 背景图'
-      $dialog.Filter = 'Image files|*.png;*.jpg;*.jpeg;*.webp|All files|*.*'
-      $dialog.Multiselect = $false
-      try {
-        if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
-          $null = Set-DreamSkinActiveTheme -ImagePath $dialog.FileName -Theme $null -StateRoot $StateRoot
-          Set-DreamSkinPaused -Paused $false -StateRoot $StateRoot | Out-Null
-          $notify.ShowBalloonTip(1800, 'Codex Dream Skin', '背景图已更新。', [System.Windows.Forms.ToolTipIcon]::Info)
-        }
-      } finally {
-        $dialog.Dispose()
-      }
-    }
-    $null = Add-DreamSkinTrayItem -Items $menu.Items -Text '保存当前主题' -Action {
-      $name = [Microsoft.VisualBasic.Interaction]::InputBox('输入主题名称：', '保存 Codex Dream Skin 主题', '')
-      if ($name.Trim()) {
-        $saved = Save-DreamSkinCurrentTheme -Name $name -StateRoot $StateRoot
-        $notify.ShowBalloonTip(1800, 'Codex Dream Skin', "已保存：$($saved.Theme.name)", [System.Windows.Forms.ToolTipIcon]::Info)
-      }
-    }
-
-    $savedMenu = [System.Windows.Forms.ToolStripMenuItem]::new('已保存主题')
-    $savedThemes = @(Get-DreamSkinSavedThemes -StateRoot $StateRoot -SkipImageMetadata)
-    if ($savedThemes.Count -eq 0) {
-      $empty = [System.Windows.Forms.ToolStripMenuItem]::new('暂无已保存主题')
-      $empty.Enabled = $false
-      [void]$savedMenu.DropDownItems.Add($empty)
-    } else {
-      foreach ($saved in $savedThemes) {
-        $savedPath = $saved.Path
-        $savedName = $saved.Name
-        $savedAction = {
-          $null = Use-DreamSkinSavedTheme -ThemeDirectory $savedPath -StateRoot $StateRoot
-          Set-DreamSkinPaused -Paused $false -StateRoot $StateRoot | Out-Null
-          $notify.ShowBalloonTip(1800, 'Codex Dream Skin', "已应用：$savedName", [System.Windows.Forms.ToolTipIcon]::Info)
-        }.GetNewClosure()
-        $null = Add-DreamSkinTrayItem -Items $savedMenu.DropDownItems -Text $savedName -Action $savedAction
-      }
-    }
-    [void]$menu.Items.Add($savedMenu)
-
-    $null = Add-DreamSkinTrayItem -Items $menu.Items -Text '打开图片文件夹' -Action {
-      Start-Process -FilePath explorer.exe -ArgumentList @($paths.Images) | Out-Null
-    }
     [void]$menu.Items.Add([System.Windows.Forms.ToolStripSeparator]::new())
     $null = Add-DreamSkinTrayItem -Items $menu.Items -Text '完全恢复 Codex' -Action {
       Start-DreamSkinPowerShell -Script $restoreScript -Arguments @(
@@ -196,14 +146,22 @@ try {
   }
 
   $menu.add_Opening({ Rebuild-DreamSkinTrayMenu })
-  $notify.add_DoubleClick({
+  $showTrayMenu = {
     try {
-      Set-DreamSkinPaused -Paused $false -StateRoot $StateRoot | Out-Null
-      Start-DreamSkinPowerShell -Script $startScript -Arguments @('-Port', "$Port", '-PromptRestart')
+      Rebuild-DreamSkinTrayMenu
+      $menu.Show([System.Windows.Forms.Cursor]::Position)
     } catch {
       Show-DreamSkinTrayError -Message $_.Exception.Message
     }
-  })
+  }.GetNewClosure()
+  $notify.add_Click($showTrayMenu)
+  $notify.add_DoubleClick($showTrayMenu)
+  $notify.ShowBalloonTip(
+    2600,
+    'Codex Dream Skin',
+    '点击右下角托盘图标即可打开主题控制。',
+    [System.Windows.Forms.ToolTipIcon]::Info
+  )
   [System.Windows.Forms.Application]::Run()
 } finally {
   if ($null -ne $notify) { $notify.Dispose() }

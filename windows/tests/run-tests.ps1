@@ -257,7 +257,7 @@ try {
   Install-DreamSkinBaseTheme -ConfigPath $configPath -BackupPath $backupPath
   $installed = Read-DreamSkinUtf8File -Path $configPath
   if (-not $installed.Contains($projectName) -or $installed -notmatch 'appearanceTheme = "system"' -or
-    $installed -notmatch 'appearanceLightCodeThemeId = "codex"') {
+    $installed -notmatch 'appearanceLightCodeThemeId = "theme-\$special"') {
     throw 'Install changed a non-ASCII project name or failed to preserve the native appearance.'
   }
   if (-not (Test-Path -LiteralPath (Get-DreamSkinAppearanceMarkerPath -BackupPath $backupPath))) {
@@ -297,8 +297,9 @@ try {
   Install-DreamSkinBaseTheme -ConfigPath $legacyConfigPath -BackupPath $legacyBackupPath
   $legacyMigrated = Read-DreamSkinUtf8File -Path $legacyConfigPath
   if ($legacyMigrated -notmatch 'appearanceTheme = "system"' -or
-    $legacyMigrated -notmatch 'appearanceLightCodeThemeId = "codex"') {
-    throw 'Exact legacy managed light trio was not migrated to the saved native appearance.'
+    $legacyMigrated -notmatch 'appearanceLightCodeThemeId = "codex"' -or
+    $legacyMigrated -match 'appearanceLightChromeTheme') {
+    throw 'The retired pink chrome theme was not removed without changing the saved appearance.'
   }
   $legacyMigrated = $legacyMigrated -replace 'appearanceTheme = "system"', 'appearanceTheme = "dark"'
   Write-DreamSkinUtf8FileAtomically -Path $legacyConfigPath -Content $legacyMigrated
@@ -345,8 +346,8 @@ try {
   $nestedInstalled = Read-DreamSkinUtf8File -Path $nestedConfigPath
   $nestedDesktop = Get-DreamSkinDesktopSection -Content $nestedInstalled
   if (-not $nestedDesktop.Body.Contains('appearanceTheme = "system"') -or
-    -not $nestedDesktop.Body.Contains('appearanceLightCodeThemeId = "codex"')) {
-    throw 'Install did not update scalar appearance settings beside nested desktop theme tables.'
+    -not $nestedDesktop.Body.Contains('appearanceLightCodeThemeId = "github-light"')) {
+    throw 'Install changed scalar appearance settings beside nested desktop theme tables.'
   }
   if ([regex]::IsMatch($nestedDesktop.Body, '(?m)^[\t ]*appearanceLightChromeTheme[\t ]*=')) {
     throw 'Install wrote an inline light chrome theme beside the equivalent nested table.'
@@ -634,71 +635,29 @@ try {
   }
 
   $themeStateRoot = Join-Path $temporaryRoot 'theme-state'
-  $legacyPresetDirectory = Join-Path $themeStateRoot 'themes\preset-romantic-rose'
   $customThemeDirectory = Join-Path $themeStateRoot 'themes\custom-keepme'
-  New-Item -ItemType Directory -Force -Path $legacyPresetDirectory, $customThemeDirectory | Out-Null
-  [System.IO.File]::WriteAllText((Join-Path $legacyPresetDirectory 'retired-marker'), 'retired', $utf8NoBom)
+  New-Item -ItemType Directory -Force -Path $customThemeDirectory | Out-Null
   [System.IO.File]::WriteAllText((Join-Path $customThemeDirectory 'keep-marker'), 'keep', $utf8NoBom)
   $themePaths = Initialize-DreamSkinThemeStore -SkillRoot $Root -StateRoot $themeStateRoot
-  if ((Test-Path -LiteralPath $legacyPresetDirectory) -or
-    -not (Test-Path -LiteralPath (Join-Path $customThemeDirectory 'keep-marker'))) {
-    throw 'Theme-store migration did not retire the old preset ID while preserving custom themes.'
+  if (-not (Test-Path -LiteralPath (Join-Path $customThemeDirectory 'keep-marker'))) {
+    throw 'Theme-store initialization did not preserve unrelated user theme files.'
   }
   $initialTheme = Read-DreamSkinTheme -ThemeDirectory $themePaths.Active
-  if ($initialTheme.Theme.id -cne 'preset-arina-hashimoto' -or
-    $initialTheme.Theme.name -cne '桥本有菜' -or
-    $initialTheme.Theme.appearance -cne 'auto' -or
-    $initialTheme.Theme.art.safeArea -cne 'left' -or
-    $initialTheme.Theme.art.taskMode -cne 'ambient' -or
+  if ($initialTheme.Theme.id -cne 'preset-codex-document' -or
+    $initialTheme.Theme.name -cne 'CODEX Document' -or
+    $initialTheme.Theme.mode -cne 'codex-document' -or
+    $initialTheme.Theme.appearance -cne 'light' -or
+    $initialTheme.Theme.art.safeArea -cne 'none' -or
+    $initialTheme.Theme.art.taskMode -cne 'off' -or
     [System.IO.Path]::GetExtension($initialTheme.ImagePath) -cne '.jpg') {
-    throw 'Default Windows theme did not seed the Arina Hashimoto wallpaper contract.'
-  }
-  $preseededThemes = @(Get-DreamSkinSavedThemes -StateRoot $themeStateRoot)
-  $preseededIds = @($preseededThemes | ForEach-Object { $_.Id })
-  if ($preseededThemes.Count -lt 2 -or
-    $preseededIds -notcontains 'preset-arina-hashimoto' -or
-    $preseededIds -notcontains 'preset-gothic-void-crusade') {
-    throw 'Windows did not preseed both Arina Hashimoto and Gothic Void Crusade.'
-  }
-  $gothicSeed = $preseededThemes | Where-Object { $_.Id -ceq 'preset-gothic-void-crusade' } | Select-Object -First 1
-  if ($null -eq $gothicSeed -or $gothicSeed.Name -cne 'Gothic Void Crusade') {
-    throw 'Gothic Void Crusade was not preseeded with the expected display name.'
-  }
-  $updatedTheme = Set-DreamSkinActiveTheme -ImagePath (Join-Path $Root 'assets\dream-reference.jpg') `
-    -Theme $null -Name '测试主题' -StateRoot $themeStateRoot
-  if ($updatedTheme.Theme.name -cne '测试主题' -or
-    $updatedTheme.Theme.id -cne 'custom' -or
-    $updatedTheme.Theme.art.safeArea -cne 'auto' -or
-    $updatedTheme.Theme.art.taskMode -cne 'auto' -or
-    -not (Test-DreamSkinThemePathWithin -Path $updatedTheme.ImagePath -Root $themePaths.Active)) {
-    throw 'Imported image did not reset to the generic adaptive contract inside the managed directory.'
+    throw 'Default Windows theme did not seed the CODEX Document contract.'
   }
   $null = Initialize-DreamSkinThemeStore -SkillRoot $Root -StateRoot $themeStateRoot
   $idempotentTheme = Read-DreamSkinTheme -ThemeDirectory $themePaths.Active
-  $afterReinitCount = @(Get-DreamSkinSavedThemes -StateRoot $themeStateRoot).Count
-  if ($idempotentTheme.Theme.id -cne 'custom' -or $afterReinitCount -ne 2) {
-    throw 'Theme-store initialization overwrote the active custom theme or duplicated its bundled presets.'
+  if ($idempotentTheme.Theme.id -cne 'preset-codex-document' -or
+    $idempotentTheme.Theme.mode -cne 'codex-document') {
+    throw 'Theme-store initialization did not keep CODEX Document as the only active theme.'
   }
-  $savedTheme = Save-DreamSkinCurrentTheme -Name '已保存主题' -StateRoot $themeStateRoot
-  if ($savedTheme.Theme.name -cne '已保存主题' -or @(Get-DreamSkinSavedThemes -StateRoot $themeStateRoot).Count -ne 3) {
-    throw 'Saved theme creation or discovery failed.'
-  }
-  $null = Use-DreamSkinSavedTheme -ThemeDirectory $savedTheme.Directory -StateRoot $themeStateRoot
-
-  $outsideTheme = Join-Path $temporaryRoot 'outside-theme'
-  New-Item -ItemType Directory -Path $outsideTheme | Out-Null
-  Copy-Item -LiteralPath (Join-Path $Root 'assets\dream-reference.jpg') `
-    -Destination (Join-Path $outsideTheme 'dream-reference.jpg')
-  Copy-Item -LiteralPath (Join-Path $Root 'assets\theme.json') `
-    -Destination (Join-Path $outsideTheme 'theme.json')
-  $junctionTheme = Join-Path $themePaths.Saved 'junction-escape'
-  $null = New-Item -ItemType Junction -Path $junctionTheme -Target $outsideTheme
-  $junctionRejected = $false
-  try {
-    $null = Use-DreamSkinSavedTheme -ThemeDirectory $junctionTheme -StateRoot $themeStateRoot
-  } catch { $junctionRejected = $true }
-  if (-not $junctionRejected) { throw 'Saved-theme junction escaped the managed theme directory.' }
-  [System.IO.Directory]::Delete($junctionTheme)
 
   Set-DreamSkinPaused -Paused $true -StateRoot $themeStateRoot | Out-Null
   if (-not (Test-DreamSkinPaused -StateRoot $themeStateRoot)) { throw 'Pause marker was not created.' }
@@ -761,7 +720,7 @@ try {
     if (-not $css.Contains($requiredCss)) { throw "Windows immersive CSS is missing: $requiredCss" }
   }
   $traySource = Read-DreamSkinUtf8File -Path (Join-Path $Root 'scripts\tray-dream-skin.ps1')
-  foreach ($requiredTrayAction in @('System.Windows.Forms.NotifyIcon', '暂停皮肤', '继续显示皮肤', '更换背景图', '已保存主题', '完全恢复 Codex')) {
+  foreach ($requiredTrayAction in @('System.Windows.Forms.NotifyIcon', '暂停皮肤', '继续显示皮肤', '完全恢复 Codex', 'CODEX Document')) {
     if (-not $traySource.Contains($requiredTrayAction)) { throw "Tray action is missing: $requiredTrayAction" }
   }
   if (-not $traySource.Contains('Invoke-DreamSkinLiveRemove') -or
@@ -800,9 +759,18 @@ try {
     $traySource.Contains('-ExecutionPolicy Bypass')) {
     throw 'Tray actions still bypass the PowerShell execution policy.'
   }
-  if (-not $traySource.Contains('Read-DreamSkinTheme -ThemeDirectory $paths.Active -SkipImageMetadata') -or
-    -not $traySource.Contains('Get-DreamSkinSavedThemes -StateRoot $StateRoot -SkipImageMetadata')) {
-    throw 'Tray menu metadata enumeration still performs full image parsing on every open.'
+  if ($traySource.Contains('更换背景图') -or $traySource.Contains('已保存主题') -or
+    $traySource.Contains('Save-DreamSkinCurrentTheme') -or $traySource.Contains('Get-DreamSkinSavedThemes')) {
+    throw 'Single-mode tray still exposes legacy theme controls.'
+  }
+  if (-not $traySource.Contains('$notify.add_Click($showTrayMenu)') -or
+    -not $traySource.Contains('$notify.add_DoubleClick($showTrayMenu)') -or
+    -not $traySource.Contains('$menu.Show([System.Windows.Forms.Cursor]::Position)')) {
+    throw 'Tray click interaction does not open the theme menu.'
+  }
+  if ($traySource.Contains('$notify.add_DoubleClick({') -and
+    $traySource.Contains('Start-DreamSkinPowerShell -Script $startScript -Arguments @(''-Port'', "$Port", ''-PromptRestart'')')) {
+    throw 'Tray double-click still launches Codex instead of opening theme controls.'
   }
   $trayTokens = $null
   $trayParseErrors = $null
@@ -866,6 +834,27 @@ try {
     }
   }
   $injectorSource = Read-DreamSkinUtf8File -Path (Join-Path $Root 'scripts\injector.mjs')
+  foreach ($requiredDocumentModeToken in @(
+    'codex-document-mode',
+    'codex-document-response',
+    'codex-document-response-header',
+    'codex-document-response-footer',
+    '从这里继续新任务',
+    'const documentPass = result.documentMode',
+    'result.documentHeaders === result.documentResponses',
+    'result.documentFooters === result.documentResponses'
+  )) {
+    if (-not $injectorSource.Contains($requiredDocumentModeToken)) {
+      throw "Document-mode verification is missing required token: $requiredDocumentModeToken"
+    }
+  }
+  $verifyStart = $injectorSource.IndexOf('async function verifySession')
+  $verifyEnd = $injectorSource.IndexOf('async function waitForVerifiedSession', $verifyStart)
+  $verifyBody = $injectorSource.Substring($verifyStart, $verifyEnd - $verifyStart)
+  if ($verifyBody.Contains('result.stylePresent && result.chromePresent') -or
+    -not $verifyBody.Contains('(documentPass || dreamPass)')) {
+    throw 'Document mode is still required to provide legacy Dream Skin chrome during verification.'
+  }
   foreach ($requiredInjectorBehavior in @(
     'MAX_ART_BYTES', 'createHash', 'readImageMetadata', '50MP safety limit', 'STRONG_THEME_AUDIT_MS',
     'Page.addScriptToEvaluateOnNewDocument', 'Page.removeScriptToEvaluateOnNewDocument', 'earlyPayloadFor'

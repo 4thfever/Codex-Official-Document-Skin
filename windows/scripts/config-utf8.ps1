@@ -353,6 +353,14 @@ function Test-DreamSkinLegacyManagedLightTrio {
   )
 }
 
+function Test-DreamSkinLegacyManagedLightChromeTheme {
+  param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Content)
+  $desktop = Get-DreamSkinDesktopSection -Content $Content
+  if ($null -eq $desktop) { return $false }
+  return (Get-DreamSkinSectionSettingLine -Body $desktop.Body -Key 'appearanceLightChromeTheme') -ceq
+    $script:DreamSkinManagedLightChromeTheme
+}
+
 function Get-DreamSkinAppearanceMarkerPath {
   param([Parameter(Mandatory = $true)][string]$BackupPath)
   return "$BackupPath.appearance.json"
@@ -435,15 +443,10 @@ function Install-DreamSkinBaseTheme {
       } else { $null }
       $body = Set-DreamSkinSectionSetting -Body $body -Key 'appearanceTheme' -Line $savedAppearance -NewLine $newLine
     }
-    $settings = [ordered]@{
-      appearanceLightCodeThemeId = $script:DreamSkinManagedLightCodeTheme
-      appearanceLightChromeTheme = $script:DreamSkinManagedLightChromeTheme
-    }
-    $hasNestedLightChromeTheme = Test-DreamSkinDesktopNestedTable `
-      -Content $content -Key 'appearanceLightChromeTheme'
-    foreach ($key in $settings.Keys) {
-      if ($key -eq 'appearanceLightChromeTheme' -and $hasNestedLightChromeTheme) { continue }
-      $body = Set-DreamSkinSectionSetting -Body $body -Key $key -Line $settings[$key] -NewLine $newLine
+    # Document Mode does not own Codex chrome colors. Remove only the exact
+    # pink chrome value written by the retired Dream Skin implementation.
+    if (Test-DreamSkinLegacyManagedLightChromeTheme -Content $content) {
+      $body = Set-DreamSkinSectionSetting -Body $body -Key 'appearanceLightChromeTheme' -Line $null -NewLine $newLine
     }
 
     $content = $content.Substring(0, $desktop.BodyStart) + $body +
@@ -492,12 +495,12 @@ function Restore-DreamSkinBaseTheme {
   $appearanceMarker = Read-DreamSkinAppearanceMarker -BackupPath $BackupPath
   $restoreLegacyAppearance = $null -eq $appearanceMarker -and
     (Test-DreamSkinLegacyManagedLightTrio -Content $currentContent)
-  $restoreKeys = @('appearanceLightCodeThemeId', 'appearanceLightChromeTheme')
+  $restoreKeys = @()
   if ($restoreLegacyAppearance) { $restoreKeys = @('appearanceTheme') + $restoreKeys }
-  $hasNestedLightChromeTheme = Test-DreamSkinDesktopNestedTable `
-    -Content $currentContent -Key 'appearanceLightChromeTheme'
+  if (Test-DreamSkinLegacyManagedLightChromeTheme -Content $currentContent) {
+    $restoreKeys += 'appearanceLightChromeTheme'
+  }
   foreach ($key in $restoreKeys) {
-    if ($key -eq 'appearanceLightChromeTheme' -and $hasNestedLightChromeTheme) { continue }
     $keyToken = Get-DreamSkinTomlKeyTokenPattern -Key $key
     $pattern = "(?m)^[\t ]*$keyToken[\t ]*=[^\r\n]*(?:\r?\n|(?=\z))"
     $saved = if ($null -ne $backupDesktop) { [regex]::Match($backupDesktop.Body, $pattern) } else { $null }

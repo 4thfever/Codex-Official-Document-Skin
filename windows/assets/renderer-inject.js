@@ -29,6 +29,17 @@
     "--dream-image-luma",
   ];
   const HOME_UTILITY_CLASS = "dream-home-utility";
+  const DOCUMENT_MODE_CLASS = "codex-document-mode";
+  const DOCUMENT_RESPONSE_CLASS = "codex-document-response";
+  const DOCUMENT_HEADER_CLASS = "codex-document-response-header";
+  const DOCUMENT_GREETING_CLASS = "codex-document-response-greeting";
+  const DOCUMENT_FOOTER_CLASS = "codex-document-response-footer";
+  const DOCUMENT_CLOSING_CLASS = "codex-document-response-closing";
+  const DOCUMENT_SIGNATURE_CLASS = "codex-document-response-signature";
+  const DOCUMENT_DATE_CLASS = "codex-document-response-date";
+  const ASSISTANT_MARKER_SELECTOR = '[data-message-author-role="assistant"]';
+  const ASSISTANT_ACTION_SELECTOR = 'button[aria-label="从这里继续新任务"]';
+  const ASSISTANT_TURN_SELECTOR = ".group.flex.min-w-0.flex-col";
   const installToken = {};
   let samplingNativeShell = false;
   let observer = null;
@@ -73,8 +84,23 @@
     const taskMode = ["auto", "ambient", "banner", "off"].includes(art.taskMode)
       ? art.taskMode
       : "auto";
+    const mode = config.mode === "codex-document" ? "codex-document" : "dream-skin";
+    const documentConfig = config.document && typeof config.document === "object" ? config.document : {};
+    const normalizedText = (candidate, fallback, maxLength = 80) => {
+      if (typeof candidate !== "string") return fallback;
+      const value = candidate.trim().replace(/[\r\n]/g, " ");
+      return value && value.length <= maxLength ? value : fallback;
+    };
+    const documentColor = (candidate, fallback) => {
+      if (typeof candidate !== "string") return fallback;
+      const value = candidate.trim();
+      return /^(?:#[\da-f]{3,8}|(?:rgb|hsl|oklch|oklab)\([^;{}]{1,96}\))$/i.test(value)
+        ? value
+        : fallback;
+    };
     const metadataRatio = Number(config?.artMetadata?.ratio);
     return {
+      mode,
       appearance,
       safeArea,
       taskMode,
@@ -82,6 +108,16 @@
       focusY: hasNumber(art.focusY) ? clamp(art.focusY) : null,
       accent: safeAccent,
       initialAspect: Number.isFinite(metadataRatio) && metadataRatio > 0 ? metadataRatio : null,
+      document: {
+        masthead: normalizedText(documentConfig.masthead, "美国科代克斯技术服务有限公司", 32),
+        greeting: normalizedText(documentConfig.greeting, "尊敬的董事长：", 80),
+        closing: normalizedText(documentConfig.closing, "此致", 32),
+        signature: normalizedText(documentConfig.signature, "Codex小助手", 80),
+        accent: documentColor(documentConfig.accent, "#8B1E1E"),
+        surface: documentColor(documentConfig.surface, "#FCFBF7"),
+        text: documentColor(documentConfig.text, "#24201D"),
+        border: documentColor(documentConfig.border, "#D8D1C6"),
+      },
     };
   };
 
@@ -106,7 +142,7 @@
   const existingStyle = document.getElementById(STYLE_ID);
   if (existingStyle) {
     existingStyle.textContent = cssText;
-    existingStyle.dataset.dreamVersion = "3";
+    existingStyle.dataset.dreamVersion = "4";
   }
 
   const analyzeArt = () => new Promise((resolve) => {
@@ -278,13 +314,94 @@
   const clearSkinDom = () => {
     const root = document.documentElement;
     root?.classList.remove(...ROOT_CLASSES);
+    root?.classList.remove(DOCUMENT_MODE_CLASS);
     for (const property of ROOT_PROPERTIES) root?.style.removeProperty(property);
     document.querySelectorAll(".dream-home").forEach((node) => node.classList.remove("dream-home"));
     document.querySelectorAll(".dream-task").forEach((node) => node.classList.remove("dream-task"));
     document.querySelectorAll(".dream-home-shell").forEach((node) => node.classList.remove("dream-home-shell"));
     document.querySelectorAll(`.${HOME_UTILITY_CLASS}`).forEach((node) => node.classList.remove(HOME_UTILITY_CLASS));
+    document.querySelectorAll(`.${DOCUMENT_RESPONSE_CLASS}`).forEach((node) => node.classList.remove(DOCUMENT_RESPONSE_CLASS));
+    document.querySelectorAll(`.${DOCUMENT_HEADER_CLASS}, .${DOCUMENT_GREETING_CLASS}, .${DOCUMENT_FOOTER_CLASS}`).forEach((node) => node.remove());
     document.getElementById(STYLE_ID)?.remove();
     document.getElementById(CHROME_ID)?.remove();
+  };
+
+  const ensureDocumentResponses = () => {
+    const root = document.documentElement;
+    root?.classList.add(DOCUMENT_MODE_CLASS);
+    root?.style.setProperty("--codex-document-accent", config.document.accent);
+    root?.style.setProperty("--codex-document-surface", config.document.surface);
+    root?.style.setProperty("--codex-document-text", config.document.text);
+    root?.style.setProperty("--codex-document-border", config.document.border);
+    const messages = new Set();
+    for (const marker of document.querySelectorAll(ASSISTANT_MARKER_SELECTOR)) {
+      const message = marker.closest?.("article") || marker.closest?.('[data-message-author-role]') || marker;
+      if (message) messages.add(message);
+    }
+    // Current Codex Desktop builds do not expose a stable role attribute on
+    // assistant turns. "从这里继续新任务" is an assistant-only action; unlike
+    // "复制消息", it is never attached to a user-authored turn. Use the
+    // nearest reply group instead of the action's variable toolbar wrapper.
+    for (const action of document.querySelectorAll(ASSISTANT_ACTION_SELECTOR)) {
+      const turn = action.closest?.(ASSISTANT_TURN_SELECTOR);
+      if (turn && turn.querySelectorAll(ASSISTANT_ACTION_SELECTOR).length === 1) messages.add(turn);
+    }
+    for (const message of messages) {
+      if (!message?.classList || !message.querySelector || !message.prepend || !message.appendChild) continue;
+      message.classList.add(DOCUMENT_RESPONSE_CLASS);
+      let header = message.querySelector(`:scope > .${DOCUMENT_HEADER_CLASS}`);
+      if (!header) {
+        header = document.createElement("div");
+        header.className = DOCUMENT_HEADER_CLASS;
+        header.setAttribute("aria-hidden", "true");
+        message.prepend(header);
+      }
+      header.textContent = config.document.masthead;
+
+      let greeting = message.querySelector(`:scope > .${DOCUMENT_GREETING_CLASS}`);
+      if (!greeting) {
+        greeting = document.createElement("div");
+        greeting.className = DOCUMENT_GREETING_CLASS;
+        greeting.setAttribute("aria-hidden", "true");
+        message.prepend(greeting);
+      }
+      greeting.textContent = config.document.greeting;
+      // prepend inserts in reverse order, keeping the greeting between the
+      // masthead and native response content without moving that content.
+      message.prepend(header);
+
+      let footer = message.querySelector(`:scope > .${DOCUMENT_FOOTER_CLASS}`);
+      if (!footer) {
+        footer = document.createElement("div");
+        footer.className = DOCUMENT_FOOTER_CLASS;
+        footer.setAttribute("aria-hidden", "true");
+        message.appendChild(footer);
+      }
+      const legacyFooter = footer.textContent.trim().startsWith("CODEX / Response");
+      if (legacyFooter) footer.textContent = "";
+      let closing = legacyFooter ? null : footer.querySelector(`:scope > .${DOCUMENT_CLOSING_CLASS}`);
+      if (!closing) {
+        closing = document.createElement("div");
+        closing.className = DOCUMENT_CLOSING_CLASS;
+        footer.appendChild(closing);
+      }
+      closing.textContent = config.document.closing;
+      let signature = footer.querySelector(`:scope > .${DOCUMENT_SIGNATURE_CLASS}`);
+      if (!signature) {
+        signature = document.createElement("div");
+        signature.className = DOCUMENT_SIGNATURE_CLASS;
+        footer.appendChild(signature);
+      }
+      signature.textContent = config.document.signature;
+      let date = footer.querySelector(`:scope > .${DOCUMENT_DATE_CLASS}`);
+      if (!date) {
+        date = document.createElement("div");
+        date.className = DOCUMENT_DATE_CLASS;
+        footer.appendChild(date);
+      }
+      const now = new Date();
+      date.textContent = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日`;
+    }
   };
 
   const applyProfile = (root) => {
@@ -339,19 +456,26 @@
       return;
     }
 
-    root.classList.add("codex-dream-skin");
-    applyProfile(root);
-
     let style = document.getElementById(STYLE_ID);
     if (!style) {
       style = document.createElement("style");
       style.id = STYLE_ID;
       (document.head || root).appendChild(style);
     }
-    if (style.dataset.dreamVersion !== "3") {
+    if (style.dataset.dreamVersion !== "4") {
       style.textContent = cssText;
-      style.dataset.dreamVersion = "3";
+      style.dataset.dreamVersion = "4";
     }
+
+    if (config.mode === "codex-document") {
+      root.classList.remove(...ROOT_CLASSES);
+      ensureDocumentResponses();
+      return;
+    }
+
+    root.classList.remove(DOCUMENT_MODE_CLASS);
+    root.classList.add("codex-dream-skin");
+    applyProfile(root);
 
     const home = document.querySelector('[role="main"]:has([data-testid="home-icon"])');
     const mainCandidates = [...document.querySelectorAll('[role="main"]')];
@@ -411,7 +535,7 @@
   });
   const timer = setInterval(ensure, 5000);
   window[STATE_KEY] = {
-    ensure, cleanup, observer, timer, scheduler, artUrl, profile, config, installToken, version: "1.2.0",
+    ensure, cleanup, observer, timer, scheduler, artUrl, profile, config, installToken, version: "1.3.0",
   };
   ensure();
   analyzeArt().then((result) => {
@@ -421,5 +545,5 @@
     state.profile = result;
     ensure();
   });
-  return { installed: true, version: "1.2.0", adaptive: true };
+  return { installed: true, version: "1.3.0", adaptive: config.mode !== "codex-document", documentMode: config.mode === "codex-document" };
 })(__DREAM_CSS_JSON__, __DREAM_ART_JSON__, __DREAM_THEME_JSON__)

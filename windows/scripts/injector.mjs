@@ -7,7 +7,7 @@ import { readImageMetadata } from "./image-metadata.mjs";
 const scriptPath = fileURLToPath(import.meta.url);
 const here = path.dirname(scriptPath);
 const root = path.resolve(here, "..");
-const SKIN_VERSION = "1.2.0";
+const SKIN_VERSION = "1.3.0";
 const MAX_ART_BYTES = 16 * 1024 * 1024;
 const STRONG_THEME_AUDIT_MS = 30000;
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
@@ -459,9 +459,13 @@ async function loadTheme(themeDir) {
   const art = raw.art && typeof raw.art === "object" && !Array.isArray(raw.art) ? raw.art : {};
   const palette = raw.palette && typeof raw.palette === "object" && !Array.isArray(raw.palette)
     ? raw.palette : {};
+  const document = raw.document && typeof raw.document === "object" && !Array.isArray(raw.document)
+    ? raw.document : {};
+  const mode = "codex-document";
   const theme = {
     id: normalizedText(raw.id, "id", "custom", 80),
     name: normalizedText(raw.name, "name", "Codex Dream Skin", 120),
+    mode,
     image,
     appearance: normalizedChoice(raw.appearance, "appearance", THEME_CHOICES.appearance, "auto"),
     art: {
@@ -471,7 +475,22 @@ async function loadTheme(themeDir) {
       taskMode: normalizedChoice(art.taskMode, "art.taskMode", THEME_CHOICES.taskMode, "auto"),
     },
     palette: {},
+    document: {},
   };
+  if (mode === "codex-document") {
+    theme.document.masthead = normalizedText(document.masthead, "masthead", "美国科代克斯技术服务有限公司", 32);
+    theme.document.greeting = normalizedText(document.greeting, "greeting", "尊敬的董事长：", 80);
+    theme.document.closing = normalizedText(document.closing, "closing", "此致", 32);
+    theme.document.signature = normalizedText(document.signature, "signature", "Codex小助手", 80);
+    for (const key of ["accent", "surface", "text", "border"]) {
+      if (typeof document[key] !== "string" || !document[key].trim()) continue;
+      const value = document[key].trim();
+      if (!/^(?:#[\da-f]{3,8}|(?:rgb|hsl|oklch|oklab)\([^;{}]{1,96}\))$/i.test(value)) {
+        throw new Error(`document.${key} is not a supported CSS color`);
+      }
+      theme.document[key] = value;
+    }
+  }
   if (typeof palette.accent === "string" && palette.accent.trim()) {
     const accent = palette.accent.trim();
     if (!/^(?:#[\da-f]{3,8}|(?:rgb|hsl|oklch|oklab)\([^;{}]{1,96}\))$/i.test(accent)) {
@@ -840,7 +859,8 @@ async function removeFromSession(session) {
       'dream-art-wide', 'dream-art-standard', 'dream-focus-left',
       'dream-focus-center', 'dream-focus-right', 'dream-safe-left',
       'dream-safe-center', 'dream-safe-right', 'dream-safe-none',
-      'dream-task-ambient', 'dream-task-banner', 'dream-task-off'
+      'dream-task-ambient', 'dream-task-banner', 'dream-task-off',
+      'codex-document-mode'
     );
     for (const property of [
       '--dream-art', '--dream-art-position', '--dream-focus-x', '--dream-focus-y',
@@ -849,6 +869,8 @@ async function removeFromSession(session) {
     document.querySelectorAll('.dream-home').forEach((node) => node.classList.remove('dream-home'));
     document.querySelectorAll('.dream-task').forEach((node) => node.classList.remove('dream-task'));
     document.querySelectorAll('.dream-home-shell').forEach((node) => node.classList.remove('dream-home-shell'));
+    document.querySelectorAll('.codex-document-response').forEach((node) => node.classList.remove('codex-document-response'));
+    document.querySelectorAll('.codex-document-response-header, .codex-document-response-footer').forEach((node) => node.remove());
     document.getElementById('codex-dream-skin-style')?.remove();
     document.getElementById('codex-dream-skin-chrome')?.remove();
     delete window.__CODEX_DREAM_SKIN_STATE__;
@@ -859,10 +881,14 @@ async function removeFromSession(session) {
 async function verifyRemovedSession(session) {
   return session.evaluate(`(() =>
     !document.documentElement.classList.contains('codex-dream-skin') &&
+    !document.documentElement.classList.contains('codex-document-mode') &&
     !document.documentElement.style.getPropertyValue('--dream-art') &&
     !document.querySelector('.dream-home') &&
     !document.querySelector('.dream-task') &&
     !document.querySelector('.dream-home-shell') &&
+    !document.querySelector('.codex-document-response') &&
+    !document.querySelector('.codex-document-response-header') &&
+    !document.querySelector('.codex-document-response-footer') &&
     !document.getElementById('codex-dream-skin-style') &&
     !document.getElementById('codex-dream-skin-chrome') &&
     !window.__CODEX_DREAM_SKIN_STATE__
@@ -877,10 +903,23 @@ async function verifySession(session) {
       return { x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width), height: Math.round(r.height) };
     };
     const home = document.querySelector('.dream-home');
+    const documentMode = document.documentElement.classList.contains('codex-document-mode');
+    const assistantMarkers = [...document.querySelectorAll('[data-message-author-role="assistant"]')];
+    const assistantActions = [...document.querySelectorAll('button[aria-label="从这里继续新任务"]')];
+    const documentResponses = [...document.querySelectorAll('.codex-document-response')];
+    const documentHeaders = documentResponses.filter((node) =>
+      node.querySelector(':scope > .codex-document-response-header'));
+    const documentFooters = documentResponses.filter((node) =>
+      node.querySelector(':scope > .codex-document-response-footer'));
     const suggestions = home?.querySelector('.group\\\\/home-suggestions') ?? null;
     const cards = suggestions ? [...suggestions.querySelectorAll('button')].map(box) : [];
     const result = {
-      installed: document.documentElement.classList.contains('codex-dream-skin'),
+      installed: document.documentElement.classList.contains('codex-dream-skin') || documentMode,
+      documentMode,
+      documentResponses: documentResponses.length,
+      documentHeaders: documentHeaders.length,
+      documentFooters: documentFooters.length,
+      assistantActions: assistantActions.length,
       version: window.__CODEX_DREAM_SKIN_STATE__?.version ?? null,
       expectedVersion: ${JSON.stringify(SKIN_VERSION)},
       stylePresent: Boolean(document.getElementById('codex-dream-skin-style')),
@@ -898,11 +937,17 @@ async function verifySession(session) {
         y: document.documentElement.scrollHeight > document.documentElement.clientHeight,
       },
     };
-    result.pass = result.installed && result.version === result.expectedVersion &&
-      result.stylePresent && result.chromePresent &&
-      result.chromePointerEvents === 'none' && Boolean(result.composer) && Boolean(result.sidebar) &&
+    const documentPass = result.documentMode &&
+      result.documentHeaders === result.documentResponses &&
+      result.documentFooters === result.documentResponses &&
+      (!assistantMarkers.length && !assistantActions.length || result.documentResponses > 0);
+    const dreamPass = !result.documentMode && result.chromePresent &&
+      result.chromePointerEvents === 'none' &&
       (!result.homePresent || (Boolean(result.hero) &&
         (!result.suggestionsPresent || (result.cards.length >= 2 && result.cards.length <= 4))));
+    result.pass = result.installed && result.version === result.expectedVersion &&
+      result.stylePresent && Boolean(result.composer) && Boolean(result.sidebar) &&
+      (documentPass || dreamPass);
     return result;
   })()`);
 }

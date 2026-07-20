@@ -28,6 +28,127 @@
   --dream-task-immersive-far: color-mix(in oklab, var(--dream-surface) 66%, transparent);
 }
 
+/* CODEX Document Mode is deliberately scoped to assistant messages only. */
+html.codex-document-mode .codex-document-response {
+  box-sizing: border-box;
+  width: 100% !important;
+  max-width: none !important;
+  margin-block: 24px !important;
+  padding: 0 clamp(26px, 4vw, 48px) 30px !important;
+  color: var(--codex-document-text, #24201d) !important;
+  background: var(--codex-document-surface, #fcfbf7) !important;
+  border: 0 !important;
+  border-top: 1px solid var(--codex-document-border, #d8d1c6) !important;
+  border-bottom: 1px solid var(--codex-document-border, #d8d1c6) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  font-family: "STFangsong", "FangSong", "仿宋_GB2312", "仿宋", "Noto Serif CJK SC", serif !important;
+  font-size: 17px !important;
+  font-weight: 400;
+  letter-spacing: 0.015em;
+  line-height: 1.9;
+}
+
+html.codex-document-mode .codex-document-response-header {
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  min-height: 64px;
+  margin: 0 calc(clamp(26px, 4vw, 48px) * -1) 24px;
+  padding: 22px clamp(26px, 4vw, 48px) 12px;
+  color: var(--codex-document-accent, #8b1e1e) !important;
+  border-bottom: 2px solid var(--codex-document-accent, #8b1e1e);
+  font-family: "STZhongsong", "STSong", "SimSun", serif !important;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  text-align: center;
+}
+
+html.codex-document-mode .codex-document-response-greeting {
+  margin: 0 0 1.1em;
+  color: var(--codex-document-text, #24201d) !important;
+  font-family: "STFangsong", "FangSong", "仿宋_GB2312", "仿宋", "Noto Serif CJK SC", serif !important;
+  font-size: inherit;
+  font-weight: 400;
+  line-height: 1.9;
+}
+
+html.codex-document-mode .codex-document-response-footer {
+  margin-top: 2.2em;
+  color: var(--codex-document-text, #24201d) !important;
+  font-family: "STFangsong", "FangSong", "仿宋_GB2312", "仿宋", "Noto Serif CJK SC", serif !important;
+  font-size: 17px;
+  line-height: 1.9;
+}
+
+html.codex-document-mode .codex-document-response-closing {
+  margin-bottom: 1.45em;
+  text-align: left;
+}
+
+html.codex-document-mode .codex-document-response-signature,
+html.codex-document-mode .codex-document-response-date {
+  text-align: right;
+}
+
+html.codex-document-mode .codex-document-response-date {
+  margin-top: 0.2em;
+}
+
+html.codex-document-mode .codex-document-response :is(h1, h2, h3) {
+  color: var(--codex-document-text, #24201d) !important;
+  letter-spacing: 0;
+}
+
+html.codex-document-mode .codex-document-response h1 {
+  margin: 1.7em 0 0.85em !important;
+  font-family: "SimHei", "黑体", "Microsoft YaHei", sans-serif !important;
+  font-size: 1.45em !important;
+  font-weight: 700 !important;
+  line-height: 1.45;
+}
+
+html.codex-document-mode .codex-document-response h2 {
+  margin: 1.55em 0 0.7em !important;
+  font-family: "KaiTi", "楷体", "STKaiti", serif !important;
+  font-size: 1.2em !important;
+  font-weight: 700 !important;
+  line-height: 1.55;
+}
+
+html.codex-document-mode .codex-document-response p {
+  margin-block: 0 1em !important;
+}
+
+html.codex-document-mode .codex-document-response :is(code, pre, kbd, samp) {
+  font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace !important;
+}
+
+html.codex-document-mode .codex-document-response pre {
+  color: inherit !important;
+  background: #f3f1ed !important;
+  border: 1px solid #ddd6cc !important;
+  border-radius: 2px !important;
+  padding: 16px 18px !important;
+  line-height: 1.7;
+}
+
+html.codex-document-mode .codex-document-response pre + * {
+  margin-top: 1.1em !important;
+}
+
+html.codex-document-mode .codex-document-response :is(table, th, td) {
+  border-color: var(--codex-document-border, #d8d1c6) !important;
+}
+
+html.codex-document-mode .codex-document-response a {
+  color: color-mix(in srgb, var(--codex-document-accent, #8b1e1e) 82%, #111) !important;
+}
+
+/* End CODEX Document Mode. */
+
 :root.codex-dream-skin.dream-theme-dark {
   color-scheme: dark;
   --dream-canvas: color-mix(in oklab, oklch(0.16 0.012 245) 96%, var(--dream-accent));

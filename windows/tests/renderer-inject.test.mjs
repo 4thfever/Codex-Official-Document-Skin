@@ -41,7 +41,6 @@ function createFixture({
   let hasMain = mainPresent;
   let hasSidebar = sidebarPresent;
   let root;
-
   const queueRootClassMutation = () => {
     for (const observer of observers) {
       if (observer.target !== root || !observer.options?.attributes) continue;
@@ -70,6 +69,50 @@ function createFixture({
     },
     contains(value) { return classes.has(value); },
   });
+  const messageClasses = new Set();
+  const userMessageClasses = new Set();
+  const assistantAction = { parentElement: null };
+  const makeMessage = (classes) => {
+    const children = [];
+    return {
+      classList: makeClassList(classes),
+      querySelector(selector) {
+        const name = selector.match(/^:scope > \.([^ ]+)$/)?.[1];
+        return name ? children.find((child) => child.className === name) ?? null : null;
+      },
+      prepend(node) {
+        const existingIndex = children.indexOf(node);
+        if (existingIndex >= 0) children.splice(existingIndex, 1);
+        node.parentElement = this;
+        children.unshift(node);
+      },
+      appendChild(node) {
+        const existingIndex = children.indexOf(node);
+        if (existingIndex >= 0) children.splice(existingIndex, 1);
+        node.parentElement = this;
+        children.push(node);
+      },
+      children,
+    };
+  };
+  const findDirectChild = (node, selector) => {
+    const name = selector.match(/^:scope > \.([^ ]+)$/)?.[1];
+    return name ? node.children?.find((child) => child.className === name) ?? null : null;
+  };
+  const assistantMessage = makeMessage(messageClasses);
+  const userMessage = makeMessage(userMessageClasses);
+  const virtualizedTurn = {
+    parentElement: null,
+    querySelectorAll(selector) {
+      return selector === 'button[aria-label="从这里继续新任务"]' ? [assistantAction] : [];
+    },
+  };
+  assistantAction.closest = (selector) =>
+    selector === ".group.flex.min-w-0.flex-col" ? virtualizedTurn : null;
+  assistantMessage.classList.add("w-full", "items-end", "justify-end");
+  assistantAction.parentElement = assistantMessage;
+  assistantMessage.querySelectorAll = (selector) =>
+    selector === 'button[aria-label="从这里继续新任务"]' ? [assistantAction] : [];
 
   root = {
     className: shellAppearance,
@@ -129,11 +172,32 @@ function createFixture({
       dataset: {},
       style: {},
       classList: makeClassList(),
+      className: "",
       parentElement: null,
+      children: [],
       textContent: "",
       innerHTML: "",
       setAttribute() {},
-      remove() { nodes.delete(this.id); },
+      querySelector(selector) { return findDirectChild(this, selector); },
+      prepend(node) {
+        const existingIndex = this.children.indexOf(node);
+        if (existingIndex >= 0) this.children.splice(existingIndex, 1);
+        node.parentElement = this;
+        this.children.unshift(node);
+      },
+      appendChild(node) {
+        const existingIndex = this.children.indexOf(node);
+        if (existingIndex >= 0) this.children.splice(existingIndex, 1);
+        node.parentElement = this;
+        this.children.push(node);
+      },
+      remove() {
+        nodes.delete(this.id);
+        if (this.parentElement?.children) {
+          const index = this.parentElement.children.indexOf(this);
+          if (index >= 0) this.parentElement.children.splice(index, 1);
+        }
+      },
     };
   };
   if (staleSkin) {
@@ -166,6 +230,17 @@ function createFixture({
       if (selector === ".dream-task") return routeClasses.has("dream-task") ? [routeMain] : [];
       if (selector === ".dream-home-utility") {
         return utilityClasses.has("dream-home-utility") ? [utilityNode] : [];
+      }
+      if (selector === '[data-message-author-role="assistant"]') return hasMain ? [assistantMessage] : [];
+      if (selector === 'button[aria-label="从这里继续新任务"]') return hasMain ? [assistantAction] : [];
+      if (selector === ".codex-document-response") {
+        return messageClasses.has("codex-document-response") ? [assistantMessage] : [];
+      }
+      if (selector === ".codex-document-response-header, .codex-document-response-greeting, .codex-document-response-footer") {
+        return assistantMessage.children.filter((node) =>
+          node.className === "codex-document-response-header" ||
+          node.className === "codex-document-response-greeting" ||
+          node.className === "codex-document-response-footer");
       }
       if (!staleSkin) return [];
       if (selector === ".dream-home") return [staleHome];
@@ -230,6 +305,10 @@ function createFixture({
     revokedUrls,
     routeClasses,
     utilityClasses,
+    messageClasses,
+    userMessageClasses,
+    assistantMessage,
+    userMessage,
     setShellPresent(value) {
       hasMain = value;
       hasSidebar = value;
@@ -334,6 +413,62 @@ assert.equal(configured.routeClasses.has("dream-task"), false);
 assert.equal(configured.utilityClasses.has("dream-home-utility"), true);
 assert.equal(configured.context.window.__CODEX_DREAM_SKIN_STATE__.cleanup(), true);
 assert.equal(configured.utilityClasses.has("dream-home-utility"), false);
+
+const documentMode = createFixture({ shellPresent: true });
+const documentPayload = buildPayload({
+  mode: "codex-document",
+  appearance: "light",
+  document: {
+    masthead: "美国科代克斯技术服务有限公司",
+    greeting: "尊敬的董事长：",
+    closing: "此致",
+    signature: "Codex小助手",
+    accent: "#a80000",
+    surface: "#f8f7f2",
+    text: "#1d1d1d",
+    border: "#c9c3ba",
+  },
+});
+const documentResult = vm.runInNewContext(documentPayload, documentMode.context);
+assert.equal(documentResult.documentMode, true);
+assert.equal(documentResult.adaptive, false);
+assert.equal(documentMode.rootClasses.has("codex-dream-skin"), false);
+assert.equal(documentMode.rootClasses.has("codex-document-mode"), true);
+assert.equal(documentMode.rootStyles.has("--dream-art"), false);
+assert.equal(documentMode.messageClasses.has("codex-document-response"), true);
+assert.equal(documentMode.userMessageClasses.has("codex-document-response"), false);
+assert.equal(documentMode.assistantMessage.children.length, 3);
+assert.equal(documentMode.assistantMessage.children[0].className, "codex-document-response-header");
+assert.equal(documentMode.assistantMessage.children[0].textContent, "美国科代克斯技术服务有限公司");
+assert.equal(documentMode.assistantMessage.children[1].className, "codex-document-response-greeting");
+assert.equal(documentMode.assistantMessage.children[1].textContent, "尊敬的董事长：");
+assert.equal(documentMode.assistantMessage.children[2].className, "codex-document-response-footer");
+assert.equal(documentMode.assistantMessage.children[2].children[0].textContent, "此致");
+assert.equal(documentMode.assistantMessage.children[2].children[1].textContent, "Codex小助手");
+assert.match(documentMode.assistantMessage.children[2].children[2].textContent, /^\d{4}年\d{1,2}月\d{1,2}日$/);
+documentMode.context.window.__CODEX_DREAM_SKIN_STATE__.ensure();
+assert.equal(documentMode.assistantMessage.children.length, 3, "Document shell must remain idempotent during streaming updates.");
+assert.equal(documentMode.context.window.__CODEX_DREAM_SKIN_STATE__.cleanup(), true);
+assert.equal(documentMode.rootClasses.has("codex-document-mode"), false);
+assert.equal(documentMode.messageClasses.has("codex-document-response"), false);
+assert.equal(documentMode.assistantMessage.children.length, 0);
+
+const documentCssStart = css.indexOf("/* CODEX Document Mode");
+const documentCssEnd = css.indexOf("/* End CODEX Document Mode. */");
+const documentCss = css.slice(documentCssStart, documentCssEnd);
+assert.ok(documentCss.length > 0, "Document-mode CSS marker is missing.");
+assert.doesNotMatch(
+  documentCss,
+  /aside\.app-shell-left-panel/,
+  "Document mode must not style the native left sidebar.",
+);
+assert.doesNotMatch(
+  documentCss,
+  /\.composer-surface-chrome/,
+  "Document mode must not restyle the native composer.",
+);
+assert.match(documentCss, /\.codex-document-response \{/);
+assert.match(documentCss, /Cascadia Code/, "Document mode must preserve a monospace stack for code.");
 
 const analysisPixels = new Uint8ClampedArray(48 * 12 * 4);
 for (let index = 0; index < 48 * 12; index += 1) {
