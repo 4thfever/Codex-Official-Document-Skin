@@ -134,7 +134,7 @@ ${PROSE_WRAPPER_END}
         masthead: normalizedText(documentConfig.masthead, "美国科代克斯技术服务有限公司", 32),
         greeting: normalizedText(documentConfig.greeting, "尊敬的董事长：", 80),
         closing: normalizedText(documentConfig.closing, "此致", 32),
-        signature: normalizedText(documentConfig.signature, "Codex小助手", 80),
+        signature: normalizedText(documentConfig.signature, "山姆·奥特曼", 80),
         accent: documentColor(documentConfig.accent, "#8B1E1E"),
         surface: documentColor(documentConfig.surface, "#FCFBF7"),
         text: documentColor(documentConfig.text, "#24201D"),

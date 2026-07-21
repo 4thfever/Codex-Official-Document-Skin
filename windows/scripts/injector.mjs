@@ -481,7 +481,7 @@ async function loadTheme(themeDir) {
     theme.document.masthead = normalizedText(document.masthead, "masthead", "美国科代克斯技术服务有限公司", 32);
     theme.document.greeting = normalizedText(document.greeting, "greeting", "尊敬的董事长：", 80);
     theme.document.closing = normalizedText(document.closing, "closing", "此致", 32);
-    theme.document.signature = normalizedText(document.signature, "signature", "Codex小助手", 80);
+    theme.document.signature = normalizedText(document.signature, "signature", "山姆·奥特曼", 80);
     for (const key of ["accent", "surface", "text", "border"]) {
       if (typeof document[key] !== "string" || !document[key].trim()) continue;
       const value = document[key].trim();

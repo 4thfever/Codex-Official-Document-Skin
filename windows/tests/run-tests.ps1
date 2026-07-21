@@ -675,7 +675,7 @@ try {
   $migratedTheme = Read-DreamSkinTheme -ThemeDirectory $themePaths.Active
   if ($migratedTheme.Theme.document.masthead -cne '美国科代克斯技术服务有限公司' -or
     $migratedTheme.Theme.document.greeting -cne '尊敬的董事长：' -or
-    $migratedTheme.Theme.document.signature -cne 'Codex小助手') {
+    $migratedTheme.Theme.document.signature -cne '山姆·奥特曼') {
     throw 'Legacy CODEX Document preset was not migrated to the document-shell defaults.'
   }
 

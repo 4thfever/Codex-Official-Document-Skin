@@ -435,7 +435,7 @@ const documentPayload = buildPayload({
     masthead: "美国科代克斯技术服务有限公司",
     greeting: "尊敬的董事长：",
     closing: "此致",
-    signature: "Codex小助手",
+    signature: "山姆·奥特曼",
     accent: "#a80000",
     surface: "#f8f7f2",
     text: "#1d1d1d",
@@ -457,7 +457,7 @@ assert.equal(documentMode.assistantMessage.children[1].className, "codex-documen
 assert.equal(documentMode.assistantMessage.children[1].textContent, "尊敬的董事长：");
 assert.equal(documentMode.assistantMessage.children[2].className, "codex-document-response-footer");
 assert.equal(documentMode.assistantMessage.children[2].children[0].textContent, "此致");
-assert.equal(documentMode.assistantMessage.children[2].children[1].textContent, "Codex小助手");
+assert.equal(documentMode.assistantMessage.children[2].children[1].textContent, "山姆·奥特曼");
 assert.match(documentMode.assistantMessage.children[2].children[2].textContent, /^\d{4}年\d{1,2}月\d{1,2}日$/);
 documentMode.context.window.__CODEX_DREAM_SKIN_STATE__.ensure();
 assert.equal(documentMode.assistantMessage.children.length, 3, "Document shell must remain idempotent during streaming updates.");
