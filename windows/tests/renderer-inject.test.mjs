@@ -510,8 +510,10 @@ assert.match(documentCss, /\.codex-document-response \{/);
 assert.match(documentCss, /Cascadia Code/, "Document mode must preserve a monospace stack for code.");
 assert.match(documentCss, /\.codex-document-response-title/, "Document mode must format structured response titles.");
 assert.match(documentCss, /\.codex-document-response-metadata/, "Document metadata must be hidden without removing it.");
-assert.match(documentCss, /font-size: 19px !important/, "Document body text must remain readable at the increased size.");
+assert.match(documentCss, /font-size: 20px !important/, "Document body text must remain readable at the increased size.");
+assert.doesNotMatch(template, /range\.collapse\(true\)/, "Composer replacement must not prepend the wrapper to the existing request.");
 assert.match(documentCss, /text-indent: 2em/, "Document paragraphs must follow the two-character first-line indent convention.");
+assert.match(template, /关于星舰概念定义说明的报告/, "The wrapper must require titles with a specific, complete subject matter.");
 assert.doesNotMatch(documentCss, /codex-document-prose-toggle/, "The prose wrapper must not create visible composer controls.");
 
 assert.match(template, /PROSE_WRAPPER_START/, "Document mode must contain a reversible prose wrapper marker.");
