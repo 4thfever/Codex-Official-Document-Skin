@@ -49,7 +49,7 @@
 \`\`\`json
 {"codex_document":{"title":"关于{事项}的{文种}"}}
 \`\`\`
-随后输出正常 Markdown 正文。title 必须严格采用“关于{事项}的{文种}”格式。事项必须完整、明确地说明本次回复的对象和核心动作、范围或内容，不得只写宽泛主题名词；例如用户问“什么是星舰”时，应写“关于星舰概念定义说明的报告”，不得写“关于星舰的报告”。文种按沟通目的选择，如通知、请示、报告、函、通报、意见、批复或纪要，不得使用“标题”“说明”等泛称代替文种。不得虚构机构、政策、权限、文号、签发、密级或法律效力。代码、命令、日志、表格、JSON、差异和用户指定格式保持原样。
+随后输出正常 Markdown 正文。title 必须严格采用“关于{事项}的{文种}”格式。事项必须完整、明确地说明本次回复的对象和核心动作、范围或内容，不得只写宽泛主题名词；例如用户问“什么是星舰”时，应写“关于星舰概念定义说明的报告”，不得写“关于星舰的报告”。文种按沟通目的选择，如通知、请示、报告、函、通报、意见、批复或纪要，不得使用“标题”“说明”等泛称代替文种。正文不得再次输出与 title 相同的 Markdown 标题或首段标题。不得虚构机构、政策、权限、文号、签发、密级或法律效力。代码、命令、日志、表格、JSON、差异和用户指定格式保持原样。
 
 以下是完整文风规则：
 ${PROSE_GUIDE}
@@ -532,6 +532,10 @@ ${PROSE_WRAPPER_END}
         }
         title.textContent = titleText;
         message.prepend(title);
+        for (const nativeTitle of message.querySelectorAll?.("h1, h2, h3, h4") || []) {
+          const nativeText = (nativeTitle.textContent || "").trim().replace(/[\r\n]/g, " ");
+          if (nativeText === titleText) nativeTitle.remove?.();
+        }
       } else {
         title?.remove();
       }

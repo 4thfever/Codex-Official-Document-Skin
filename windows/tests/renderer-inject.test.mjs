@@ -514,6 +514,10 @@ assert.match(documentCss, /font-size: 20px !important/, "Document body text must
 assert.doesNotMatch(template, /range\.collapse\(true\)/, "Composer replacement must not prepend the wrapper to the existing request.");
 assert.match(documentCss, /text-indent: 2em/, "Document paragraphs must follow the two-character first-line indent convention.");
 assert.match(template, /关于星舰概念定义说明的报告/, "The wrapper must require titles with a specific, complete subject matter.");
+assert.match(template, /正文不得再次输出与 title 相同/, "The wrapper must forbid a duplicate Markdown title in the body.");
+assert.match(template, /nativeTitle\.remove/, "The renderer must remove a legacy duplicate native title.");
+assert.match(documentCss, /codex-document-response h3/, "Document mode must size third-level headings explicitly.");
+assert.match(documentCss, /codex-document-response h4/, "Document mode must size fourth-level headings explicitly.");
 assert.doesNotMatch(documentCss, /codex-document-prose-toggle/, "The prose wrapper must not create visible composer controls.");
 
 assert.match(template, /PROSE_WRAPPER_START/, "Document mode must contain a reversible prose wrapper marker.");

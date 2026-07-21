@@ -120,17 +120,33 @@ html.codex-document-mode .codex-document-response :is(h1, h2, h3) {
 html.codex-document-mode .codex-document-response h1 {
   margin: 1.7em 0 0.85em !important;
   font-family: "SimHei", "黑体", "Microsoft YaHei", sans-serif !important;
-  font-size: 1.45em !important;
+  font-size: 26px !important;
   font-weight: 700 !important;
   line-height: 1.45;
 }
 
 html.codex-document-mode .codex-document-response h2 {
   margin: 1.55em 0 0.7em !important;
-  font-family: "KaiTi", "楷体", "STKaiti", serif !important;
-  font-size: 1.2em !important;
+  font-family: "SimHei", "黑体", "Microsoft YaHei", sans-serif !important;
+  font-size: 22px !important;
   font-weight: 700 !important;
   line-height: 1.55;
+}
+
+html.codex-document-mode .codex-document-response h3 {
+  margin: 1.4em 0 0.65em !important;
+  font-family: "KaiTi", "楷体", "STKaiti", serif !important;
+  font-size: 21px !important;
+  font-weight: 700 !important;
+  line-height: 1.6;
+}
+
+html.codex-document-mode .codex-document-response h4 {
+  margin: 1.25em 0 0.55em !important;
+  font-family: "STFangsong", "FangSong", "仿宋_GB2312", "仿宋", "Noto Serif CJK SC", serif !important;
+  font-size: 20px !important;
+  font-weight: 700 !important;
+  line-height: 1.65;
 }
 
 html.codex-document-mode .codex-document-response p {
@@ -143,6 +159,11 @@ html.codex-document-mode .codex-document-response :is(li, blockquote) > p,
 html.codex-document-mode .codex-document-response :is(li, blockquote) {
   font-size: 20px !important;
   text-indent: 0;
+}
+
+html.codex-document-mode .codex-document-response :is(ol, ul) {
+  font-size: 20px !important;
+  line-height: 1.9;
 }
 
 html.codex-document-mode .codex-document-response :is(code, pre, kbd, samp) {
