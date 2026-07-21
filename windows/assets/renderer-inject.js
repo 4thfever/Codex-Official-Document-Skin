@@ -39,10 +39,9 @@
   const DOCUMENT_SIGNATURE_CLASS = "codex-document-response-signature";
   const DOCUMENT_DATE_CLASS = "codex-document-response-date";
   const DOCUMENT_METADATA_CLASS = "codex-document-response-metadata";
-  // Markdown renderers omit HTML comments. The model still receives this
-  // context, while the user's request remains the only visible message text.
-  const PROSE_WRAPPER_START = "<!-- CODEX_DOCUMENT_PROSE_WRAPPER_START";
-  const PROSE_WRAPPER_END = "CODEX_DOCUMENT_PROSE_WRAPPER_END -->";
+  const PROSE_WRAPPER_START = "[CODEX_DOCUMENT_PROSE_WRAPPER_START]";
+  const PROSE_WRAPPER_END = "[CODEX_DOCUMENT_PROSE_WRAPPER_END]";
+  const PROSE_USER_REQUEST_MARKER = "用户原始请求如下：";
   const PROSE_GUIDE = __DREAM_PROSE_GUIDE__;
   const PROSE_WRAPPER = `${PROSE_WRAPPER_START}
 你正在使用 CODEX 正式文风模式。以下约束仅规定表达和结构，不改变用户提供的事实、立场、选材或任务。
@@ -393,7 +392,7 @@ ${PROSE_WRAPPER_END}
       const original = composerText(editable);
       if (!original.trim() || original.includes(PROSE_WRAPPER_START)) return;
       wrapping = true;
-      setComposerText(editable, `${PROSE_WRAPPER}\n\n用户原始请求如下：\n${original}`);
+      setComposerText(editable, `${PROSE_WRAPPER}\n\n${PROSE_USER_REQUEST_MARKER}\n${original}`);
       // Native send handlers run after capture listeners. Restore the visible
       // draft in the next task so the wrapper never remains in the composer.
       const restore = () => {
@@ -430,7 +429,7 @@ ${PROSE_WRAPPER_END}
   };
 
   const documentTitleFrom = (message) => {
-    for (const pre of message.querySelectorAll?.("pre") || []) {
+    for (const pre of message.querySelectorAll?.("pre, code") || []) {
       // Codex renders the fenced-code language (for example, "json") in the
       // same preformatted block on some builds. Parse from the JSON object,
       // rather than requiring the block's textContent to begin with "{".
@@ -442,14 +441,45 @@ ${PROSE_WRAPPER_END}
         if (typeof title !== "string") continue;
         // It is still metadata even when a legacy response used an invalid
         // title. Keep that transport block out of the rendered document.
-        pre.classList?.add(DOCUMENT_METADATA_CLASS);
+        const metadataBlock = pre.closest?.('[data-markdown-copy="code-block"]') || pre;
+        metadataBlock.classList?.add(DOCUMENT_METADATA_CLASS);
         const value = title.trim().replace(/[\r\n]/g, " ");
-        if (!/^关于.+的(?:通知|通报|报告|请示|批复|函|纪要|公告|通告|意见|决定|命令|公报|议案|办法|规定|细则|方案|总结)$/.test(value)) continue;
+        // The model is instructed to choose a conventional document type, but
+        // rendering only owns the title shape. Do not hide a valid title such
+        // as “关于……的说明” merely because it is outside a local whitelist.
+        if (!/^关于.+的[^\s的]+$/.test(value)) continue;
         if (value.length > 56) continue;
         return value;
       } catch {}
     }
     return "";
+  };
+
+  const originalRequestFromWrappedText = (text) => {
+    if (typeof text !== "string" || !text.includes(PROSE_WRAPPER_START)) return "";
+    const requestIndex = text.lastIndexOf(PROSE_USER_REQUEST_MARKER);
+    if (requestIndex < 0) return "";
+    return text.slice(requestIndex + PROSE_USER_REQUEST_MARKER.length).trim();
+  };
+
+  const concealProseWrapper = () => {
+    let latestOriginal = "";
+    for (const bubble of document.querySelectorAll?.('[data-user-message-bubble="true"]') || []) {
+      const original = originalRequestFromWrappedText(bubble.innerText || bubble.textContent || "");
+      if (!original) continue;
+      latestOriginal = original;
+      const content = bubble.querySelector?.('[data-selected-text-overlay-target]');
+      if (content) content.textContent = original;
+    }
+    if (!latestOriginal) return;
+    for (const title of document.querySelectorAll?.('[data-thread-title]') || []) {
+      if ((title.textContent || "").includes(PROSE_WRAPPER_START)) title.textContent = latestOriginal;
+    }
+    for (const row of document.querySelectorAll?.('[data-app-action-sidebar-thread-title]') || []) {
+      if ((row.getAttribute?.('data-app-action-sidebar-thread-title') || "").includes(PROSE_WRAPPER_START)) {
+        row.setAttribute?.('data-app-action-sidebar-thread-title', latestOriginal);
+      }
+    }
   };
 
   const ensureDocumentResponses = () => {
@@ -459,6 +489,7 @@ ${PROSE_WRAPPER_END}
     root?.style.setProperty("--codex-document-surface", config.document.surface);
     root?.style.setProperty("--codex-document-text", config.document.text);
     root?.style.setProperty("--codex-document-border", config.document.border);
+    concealProseWrapper();
     const messages = new Set();
     for (const marker of document.querySelectorAll(ASSISTANT_MARKER_SELECTOR)) {
       const message = marker.closest?.("article") || marker.closest?.('[data-message-author-role]') || marker;
@@ -505,9 +536,10 @@ ${PROSE_WRAPPER_END}
       } else {
         title?.remove();
       }
-      // Prepend in reverse order so the shell remains header, greeting,
-      // structured title, then the unchanged native response content.
+      // Prepend in reverse order so the shell remains header, structured
+      // title, greeting, then the unchanged native response content.
       message.prepend(greeting);
+      if (titleText) message.prepend(title);
       message.prepend(header);
 
       let footer = message.querySelector(`:scope > .${DOCUMENT_FOOTER_CLASS}`);
@@ -666,6 +698,7 @@ ${PROSE_WRAPPER_END}
   };
   observer = new MutationObserver(() => {
     if (samplingNativeShell) return;
+    if (config.mode === "codex-document") concealProseWrapper();
     scheduleEnsure();
   });
   observer.observe(document.documentElement, {

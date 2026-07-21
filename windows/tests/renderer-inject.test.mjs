@@ -121,7 +121,7 @@ function createFixture({
   assistantAction.parentElement = assistantMessage;
   assistantMessage.querySelectorAll = (selector) => {
     if (selector === 'button[aria-label="从这里继续新任务"]') return [assistantAction];
-    if (selector === "pre") return assistantMetadata ? [assistantMetadata] : [];
+    if (selector === "pre, code") return assistantMetadata ? [assistantMetadata] : [];
     return [];
   };
 
@@ -469,8 +469,8 @@ assert.equal(documentMode.assistantMessage.children.length, 0);
 const titledDocument = createFixture({ shellPresent: true, structuredTitle: "关于项目进展情况的报告" });
 vm.runInNewContext(documentPayload, titledDocument.context);
 assert.equal(titledDocument.assistantMessage.children.length, 4);
-assert.equal(titledDocument.assistantMessage.children[2].className, "codex-document-response-title");
-assert.equal(titledDocument.assistantMessage.children[2].textContent, "关于项目进展情况的报告");
+assert.equal(titledDocument.assistantMessage.children[1].className, "codex-document-response-title");
+assert.equal(titledDocument.assistantMessage.children[1].textContent, "关于项目进展情况的报告");
 assert.equal(titledDocument.assistantMetadata.classList.contains("codex-document-response-metadata"), true);
 
 const languageLabeledTitle = createFixture({
@@ -479,8 +479,13 @@ const languageLabeledTitle = createFixture({
   structuredMetadataPrefix: "json\n",
 });
 vm.runInNewContext(documentPayload, languageLabeledTitle.context);
-assert.equal(languageLabeledTitle.assistantMessage.children[2].textContent, "关于项目进展情况的报告");
+assert.equal(languageLabeledTitle.assistantMessage.children[1].textContent, "关于项目进展情况的报告");
 assert.equal(languageLabeledTitle.assistantMetadata.classList.contains("codex-document-response-metadata"), true);
+
+const explanatoryDocumentTitle = createFixture({ shellPresent: true, structuredTitle: "关于项目进展情况的说明" });
+vm.runInNewContext(documentPayload, explanatoryDocumentTitle.context);
+assert.equal(explanatoryDocumentTitle.assistantMessage.children[1].textContent, "关于项目进展情况的说明");
+assert.equal(explanatoryDocumentTitle.assistantMetadata.classList.contains("codex-document-response-metadata"), true);
 
 const invalidDocumentTitle = createFixture({ shellPresent: true, structuredTitle: "项目进展情况说明" });
 vm.runInNewContext(documentPayload, invalidDocumentTitle.context);
@@ -505,10 +510,14 @@ assert.match(documentCss, /\.codex-document-response \{/);
 assert.match(documentCss, /Cascadia Code/, "Document mode must preserve a monospace stack for code.");
 assert.match(documentCss, /\.codex-document-response-title/, "Document mode must format structured response titles.");
 assert.match(documentCss, /\.codex-document-response-metadata/, "Document metadata must be hidden without removing it.");
+assert.match(documentCss, /font-size: 19px !important/, "Document body text must remain readable at the increased size.");
+assert.match(documentCss, /text-indent: 2em/, "Document paragraphs must follow the two-character first-line indent convention.");
 assert.doesNotMatch(documentCss, /codex-document-prose-toggle/, "The prose wrapper must not create visible composer controls.");
 
 assert.match(template, /PROSE_WRAPPER_START/, "Document mode must contain a reversible prose wrapper marker.");
-assert.match(template, /<!-- CODEX_DOCUMENT_PROSE_WRAPPER_START/, "The wrapper must be hidden in Markdown-rendered user messages.");
+assert.match(template, /concealProseWrapper/, "Wrapped user messages must be locally restored after Codex renders them.");
+assert.match(template, /data-user-message-bubble/, "The wrapper concealment must target Codex user-message bubbles.");
+assert.match(template, /\[data-markdown-copy="code-block"\]/, "Structured metadata must hide Codex's complete code-block container.");
 assert.match(template, /__DREAM_PROSE_GUIDE__/, "The renderer must receive the complete prose guide through the payload.");
 assert.match(template, /"codex_document"/, "The wrapper must require structured document metadata.");
 assert.match(template, /documentTitleFrom/, "Structured titles must be parsed from assistant metadata.");

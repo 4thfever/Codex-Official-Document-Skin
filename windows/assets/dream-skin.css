@@ -43,10 +43,10 @@ html.codex-document-mode .codex-document-response {
   border-radius: 0 !important;
   box-shadow: none !important;
   font-family: "STFangsong", "FangSong", "仿宋_GB2312", "仿宋", "Noto Serif CJK SC", serif !important;
-  font-size: 17px !important;
+  font-size: 19px !important;
   font-weight: 400;
   letter-spacing: 0.015em;
-  line-height: 1.9;
+  line-height: 1.95;
 }
 
 html.codex-document-mode .codex-document-response-header {
@@ -135,6 +135,12 @@ html.codex-document-mode .codex-document-response h2 {
 
 html.codex-document-mode .codex-document-response p {
   margin-block: 0 1em !important;
+  text-indent: 2em;
+}
+
+html.codex-document-mode .codex-document-response :is(li, blockquote) > p,
+html.codex-document-mode .codex-document-response :is(li, blockquote) {
+  text-indent: 0;
 }
 
 html.codex-document-mode .codex-document-response :is(code, pre, kbd, samp) {
