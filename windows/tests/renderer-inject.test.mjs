@@ -8,10 +8,12 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const windowsRoot = path.resolve(here, "..");
 const template = await fs.readFile(path.join(windowsRoot, "assets", "renderer-inject.js"), "utf8");
 const css = await fs.readFile(path.join(windowsRoot, "assets", "dream-skin.css"), "utf8");
+const proseGuide = await fs.readFile(path.join(windowsRoot, "assets", "prose-style-guide.md"), "utf8");
 const buildPayload = (config = {}) => template
   .replace("__DREAM_CSS_JSON__", JSON.stringify(".fixture { color: blue; }"))
   .replace("__DREAM_ART_JSON__", JSON.stringify("data:image/png;base64,AA=="))
-  .replace("__DREAM_THEME_JSON__", JSON.stringify(config));
+  .replace("__DREAM_THEME_JSON__", JSON.stringify(config))
+  .replace("__DREAM_PROSE_GUIDE__", JSON.stringify(proseGuide));
 const payload = buildPayload();
 
 assert.doesNotMatch(
@@ -31,6 +33,8 @@ function createFixture({
   computedColorScheme = "",
   osAppearance = "light",
   analysisFixture = null,
+  structuredTitle = "",
+  structuredMetadataPrefix = "",
 }) {
   const nodes = new Map();
   const rootClasses = new Set(staleSkin ? ["codex-dream-skin"] : []);
@@ -101,6 +105,10 @@ function createFixture({
   };
   const assistantMessage = makeMessage(messageClasses);
   const userMessage = makeMessage(userMessageClasses);
+  const assistantMetadata = structuredTitle ? {
+    textContent: `${structuredMetadataPrefix}${JSON.stringify({ codex_document: { title: structuredTitle } })}`,
+    classList: makeClassList(),
+  } : null;
   const virtualizedTurn = {
     parentElement: null,
     querySelectorAll(selector) {
@@ -111,8 +119,11 @@ function createFixture({
     selector === ".group.flex.min-w-0.flex-col" ? virtualizedTurn : null;
   assistantMessage.classList.add("w-full", "items-end", "justify-end");
   assistantAction.parentElement = assistantMessage;
-  assistantMessage.querySelectorAll = (selector) =>
-    selector === 'button[aria-label="从这里继续新任务"]' ? [assistantAction] : [];
+  assistantMessage.querySelectorAll = (selector) => {
+    if (selector === 'button[aria-label="从这里继续新任务"]') return [assistantAction];
+    if (selector === "pre") return assistantMetadata ? [assistantMetadata] : [];
+    return [];
+  };
 
   root = {
     className: shellAppearance,
@@ -236,10 +247,11 @@ function createFixture({
       if (selector === ".codex-document-response") {
         return messageClasses.has("codex-document-response") ? [assistantMessage] : [];
       }
-      if (selector === ".codex-document-response-header, .codex-document-response-greeting, .codex-document-response-footer") {
+      if (selector === ".codex-document-response-header, .codex-document-response-greeting, .codex-document-response-title, .codex-document-response-footer") {
         return assistantMessage.children.filter((node) =>
           node.className === "codex-document-response-header" ||
           node.className === "codex-document-response-greeting" ||
+          node.className === "codex-document-response-title" ||
           node.className === "codex-document-response-footer");
       }
       if (!staleSkin) return [];
@@ -308,6 +320,7 @@ function createFixture({
     messageClasses,
     userMessageClasses,
     assistantMessage,
+    assistantMetadata,
     userMessage,
     setShellPresent(value) {
       hasMain = value;
@@ -453,6 +466,27 @@ assert.equal(documentMode.rootClasses.has("codex-document-mode"), false);
 assert.equal(documentMode.messageClasses.has("codex-document-response"), false);
 assert.equal(documentMode.assistantMessage.children.length, 0);
 
+const titledDocument = createFixture({ shellPresent: true, structuredTitle: "关于项目进展情况的报告" });
+vm.runInNewContext(documentPayload, titledDocument.context);
+assert.equal(titledDocument.assistantMessage.children.length, 4);
+assert.equal(titledDocument.assistantMessage.children[2].className, "codex-document-response-title");
+assert.equal(titledDocument.assistantMessage.children[2].textContent, "关于项目进展情况的报告");
+assert.equal(titledDocument.assistantMetadata.classList.contains("codex-document-response-metadata"), true);
+
+const languageLabeledTitle = createFixture({
+  shellPresent: true,
+  structuredTitle: "关于项目进展情况的报告",
+  structuredMetadataPrefix: "json\n",
+});
+vm.runInNewContext(documentPayload, languageLabeledTitle.context);
+assert.equal(languageLabeledTitle.assistantMessage.children[2].textContent, "关于项目进展情况的报告");
+assert.equal(languageLabeledTitle.assistantMetadata.classList.contains("codex-document-response-metadata"), true);
+
+const invalidDocumentTitle = createFixture({ shellPresent: true, structuredTitle: "项目进展情况说明" });
+vm.runInNewContext(documentPayload, invalidDocumentTitle.context);
+assert.equal(invalidDocumentTitle.assistantMessage.children.some((node) => node.className === "codex-document-response-title"), false);
+assert.equal(invalidDocumentTitle.assistantMetadata.classList.contains("codex-document-response-metadata"), true);
+
 const documentCssStart = css.indexOf("/* CODEX Document Mode");
 const documentCssEnd = css.indexOf("/* End CODEX Document Mode. */");
 const documentCss = css.slice(documentCssStart, documentCssEnd);
@@ -469,6 +503,19 @@ assert.doesNotMatch(
 );
 assert.match(documentCss, /\.codex-document-response \{/);
 assert.match(documentCss, /Cascadia Code/, "Document mode must preserve a monospace stack for code.");
+assert.match(documentCss, /\.codex-document-response-title/, "Document mode must format structured response titles.");
+assert.match(documentCss, /\.codex-document-response-metadata/, "Document metadata must be hidden without removing it.");
+assert.doesNotMatch(documentCss, /codex-document-prose-toggle/, "The prose wrapper must not create visible composer controls.");
+
+assert.match(template, /PROSE_WRAPPER_START/, "Document mode must contain a reversible prose wrapper marker.");
+assert.match(template, /<!-- CODEX_DOCUMENT_PROSE_WRAPPER_START/, "The wrapper must be hidden in Markdown-rendered user messages.");
+assert.match(template, /__DREAM_PROSE_GUIDE__/, "The renderer must receive the complete prose guide through the payload.");
+assert.match(template, /"codex_document"/, "The wrapper must require structured document metadata.");
+assert.match(template, /documentTitleFrom/, "Structured titles must be parsed from assistant metadata.");
+assert.match(template, /ensureProseWrapper/, "The prose wrapper must install during document mode.");
+assert.match(template, /removeEventListener\?\.\("click", onClickCapture, true\)/, "Cleanup must remove the native send wrapper listener.");
+assert.doesNotMatch(template, /PROSE_TOGGLE_ID/, "The prose wrapper must not expose a visible toggle.");
+assert.match(proseGuide, /妥否，请批示/, "The full prose guide must include formal phrase rules.");
 
 const analysisPixels = new Uint8ClampedArray(48 * 12 * 4);
 for (let index = 0; index < 48 * 12; index += 1) {

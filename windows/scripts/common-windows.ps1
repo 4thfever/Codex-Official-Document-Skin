@@ -129,6 +129,7 @@ function Install-DreamSkinRuntimeEngine {
     'presets\preset-codex-document\background.jpg',
     'presets\preset-codex-document\theme.json',
     'assets\dream-skin.css',
+    'assets\prose-style-guide.md',
     'assets\renderer-inject.js',
     'scripts\common-windows.ps1',
     'scripts\config-utf8.ps1',

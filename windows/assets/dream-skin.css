@@ -75,6 +75,21 @@ html.codex-document-mode .codex-document-response-greeting {
   line-height: 1.9;
 }
 
+html.codex-document-mode .codex-document-response-title {
+  margin: 0 0 1.2em;
+  color: var(--codex-document-text, #24201d) !important;
+  font-family: "SimHei", "黑体", "Microsoft YaHei", sans-serif !important;
+  font-size: 1.45em;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.45;
+  text-align: center;
+}
+
+html.codex-document-mode .codex-document-response-metadata {
+  display: none !important;
+}
+
 html.codex-document-mode .codex-document-response-footer {
   margin-top: 2.2em;
   color: var(--codex-document-text, #24201d) !important;

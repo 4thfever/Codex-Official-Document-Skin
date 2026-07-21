@@ -7,7 +7,7 @@ import { readImageMetadata } from "./image-metadata.mjs";
 const scriptPath = fileURLToPath(import.meta.url);
 const here = path.dirname(scriptPath);
 const root = path.resolve(here, "..");
-const SKIN_VERSION = "1.3.0";
+const SKIN_VERSION = "1.4.0";
 const MAX_ART_BYTES = 16 * 1024 * 1024;
 const STRONG_THEME_AUDIT_MS = 30000;
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
@@ -530,18 +530,20 @@ async function loadTheme(themeDir) {
 
 async function loadPayload(themeDir = path.join(root, "assets"), candidateTheme = null) {
   const loadedTheme = candidateTheme ?? await loadTheme(themeDir);
-  const [css, template] = await Promise.all([
+  const [cssText, rendererTemplate, proseGuide] = await Promise.all([
     fs.readFile(path.join(root, "assets", "dream-skin.css"), "utf8"),
     fs.readFile(path.join(root, "assets", "renderer-inject.js"), "utf8"),
+    fs.readFile(path.join(root, "assets", "prose-style-guide.md"), "utf8"),
   ]);
   const extension = path.extname(loadedTheme.imagePath).toLowerCase();
   const mime = extension === ".jpg" || extension === ".jpeg" ? "image/jpeg"
     : extension === ".webp" ? "image/webp" : "image/png";
   const artDataUrl = `data:${mime};base64,${loadedTheme.imageBytes.toString("base64")}`;
-  const payload = template
-    .replace("__DREAM_CSS_JSON__", JSON.stringify(css))
+  const payload = rendererTemplate
+    .replace("__DREAM_CSS_JSON__", JSON.stringify(cssText))
     .replace("__DREAM_ART_JSON__", JSON.stringify(artDataUrl))
-    .replace("__DREAM_THEME_JSON__", JSON.stringify(loadedTheme.theme));
+    .replace("__DREAM_THEME_JSON__", JSON.stringify(loadedTheme.theme))
+    .replace("__DREAM_PROSE_GUIDE__", JSON.stringify(proseGuide));
   const { imageBytes: _imageBytes, ...themeState } = loadedTheme;
   return { ...themeState, payload };
 }
@@ -889,6 +891,7 @@ async function verifyRemovedSession(session) {
     !document.querySelector('.codex-document-response') &&
     !document.querySelector('.codex-document-response-header') &&
     !document.querySelector('.codex-document-response-footer') &&
+    !document.querySelector('.codex-document-response-title') &&
     !document.getElementById('codex-dream-skin-style') &&
     !document.getElementById('codex-dream-skin-chrome') &&
     !window.__CODEX_DREAM_SKIN_STATE__
@@ -919,6 +922,9 @@ async function verifySession(session) {
       documentResponses: documentResponses.length,
       documentHeaders: documentHeaders.length,
       documentFooters: documentFooters.length,
+      structuredTitles: documentResponses.filter((node) =>
+        node.querySelector(':scope > .codex-document-response-title')).length,
+      proseWrapperInstalled: Boolean(window.__CODEX_DREAM_SKIN_STATE__?.proseCleanup),
       assistantActions: assistantActions.length,
       version: window.__CODEX_DREAM_SKIN_STATE__?.version ?? null,
       expectedVersion: ${JSON.stringify(SKIN_VERSION)},
@@ -940,6 +946,7 @@ async function verifySession(session) {
     const documentPass = result.documentMode &&
       result.documentHeaders === result.documentResponses &&
       result.documentFooters === result.documentResponses &&
+      result.proseWrapperInstalled &&
       (!assistantMarkers.length && !assistantActions.length || result.documentResponses > 0);
     const dreamPass = !result.documentMode && result.chromePresent &&
       result.chromePointerEvents === 'none' &&
@@ -1422,7 +1429,7 @@ if (path.resolve(process.argv[1] || "") === path.resolve(scriptPath)) {
   console.log(JSON.stringify({ pass: true, version: SKIN_VERSION, test: "loopback-cdp-validation" }));
   } else if (options.mode === "check-payload") {
     const loaded = await loadPayload(options.themeDir);
-    const unresolved = ["__DREAM_CSS_JSON__", "__DREAM_ART_JSON__", "__DREAM_THEME_JSON__"]
+    const unresolved = ["__DREAM_CSS_JSON__", "__DREAM_ART_JSON__", "__DREAM_THEME_JSON__", "__DREAM_PROSE_GUIDE__"]
       .some((placeholder) => loaded.payload.includes(placeholder));
     if (unresolved) {
       throw new Error("Payload placeholders were not fully replaced");

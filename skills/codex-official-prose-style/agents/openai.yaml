@@ -1,0 +1,4 @@
+interface:
+  display_name: "CODEX Official Prose Style"
+  short_description: "Formal Chinese prose and phrase guidance"
+  default_prompt: "Use $codex-official-prose-style to draft or revise this response in the project formal prose style."

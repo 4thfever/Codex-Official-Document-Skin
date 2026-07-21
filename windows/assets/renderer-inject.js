@@ -33,16 +33,38 @@
   const DOCUMENT_RESPONSE_CLASS = "codex-document-response";
   const DOCUMENT_HEADER_CLASS = "codex-document-response-header";
   const DOCUMENT_GREETING_CLASS = "codex-document-response-greeting";
+  const DOCUMENT_TITLE_CLASS = "codex-document-response-title";
   const DOCUMENT_FOOTER_CLASS = "codex-document-response-footer";
   const DOCUMENT_CLOSING_CLASS = "codex-document-response-closing";
   const DOCUMENT_SIGNATURE_CLASS = "codex-document-response-signature";
   const DOCUMENT_DATE_CLASS = "codex-document-response-date";
+  const DOCUMENT_METADATA_CLASS = "codex-document-response-metadata";
+  // Markdown renderers omit HTML comments. The model still receives this
+  // context, while the user's request remains the only visible message text.
+  const PROSE_WRAPPER_START = "<!-- CODEX_DOCUMENT_PROSE_WRAPPER_START";
+  const PROSE_WRAPPER_END = "CODEX_DOCUMENT_PROSE_WRAPPER_END -->";
+  const PROSE_GUIDE = __DREAM_PROSE_GUIDE__;
+  const PROSE_WRAPPER = `${PROSE_WRAPPER_START}
+你正在使用 CODEX 正式文风模式。以下约束仅规定表达和结构，不改变用户提供的事实、立场、选材或任务。
+回复必须先单独输出一个 JSON 代码块，且仅使用如下结构：
+\`\`\`json
+{"codex_document":{"title":"关于{事项}的{文种}"}}
+\`\`\`
+随后输出正常 Markdown 正文。title 必须严格采用“关于{事项}的{文种}”格式：事项准确概括本次回复主题；文种按沟通目的选择，如通知、请示、报告、函、通报、意见、批复或纪要，不得使用“标题”“说明”等泛称代替文种。不得虚构机构、政策、权限、文号、签发、密级或法律效力。代码、命令、日志、表格、JSON、差异和用户指定格式保持原样。
+
+以下是完整文风规则：
+${PROSE_GUIDE}
+${PROSE_WRAPPER_END}
+`;
   const ASSISTANT_MARKER_SELECTOR = '[data-message-author-role="assistant"]';
   const ASSISTANT_ACTION_SELECTOR = 'button[aria-label="从这里继续新任务"]';
   const ASSISTANT_TURN_SELECTOR = ".group.flex.min-w-0.flex-col";
   const installToken = {};
   let samplingNativeShell = false;
   let observer = null;
+  let proseCleanup = null;
+  let proseTarget = null;
+  let proseRestore = null;
   window.__CODEX_DREAM_SKIN_DISABLED__ = false;
 
   const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, Number(value)));
@@ -86,6 +108,7 @@
       : "auto";
     const mode = config.mode === "codex-document" ? "codex-document" : "dream-skin";
     const documentConfig = config.document && typeof config.document === "object" ? config.document : {};
+    const proseConfig = config.prose && typeof config.prose === "object" ? config.prose : {};
     const normalizedText = (candidate, fallback, maxLength = 80) => {
       if (typeof candidate !== "string") return fallback;
       const value = candidate.trim().replace(/[\r\n]/g, " ");
@@ -118,6 +141,7 @@
         text: documentColor(documentConfig.text, "#24201D"),
         border: documentColor(documentConfig.border, "#D8D1C6"),
       },
+      prose: { enabled: proseConfig.enabled !== false },
     };
   };
 
@@ -125,6 +149,7 @@
   if (previous?.observer) previous.observer.disconnect();
   if (previous?.timer) clearInterval(previous.timer);
   if (previous?.scheduler?.timeout) clearTimeout(previous.scheduler.timeout);
+  previous?.proseCleanup?.();
   if (previous?.artUrl) URL.revokeObjectURL(previous.artUrl);
   const artUrl = (() => {
     const comma = artDataUrl.indexOf(",");
@@ -321,9 +346,110 @@
     document.querySelectorAll(".dream-home-shell").forEach((node) => node.classList.remove("dream-home-shell"));
     document.querySelectorAll(`.${HOME_UTILITY_CLASS}`).forEach((node) => node.classList.remove(HOME_UTILITY_CLASS));
     document.querySelectorAll(`.${DOCUMENT_RESPONSE_CLASS}`).forEach((node) => node.classList.remove(DOCUMENT_RESPONSE_CLASS));
-    document.querySelectorAll(`.${DOCUMENT_HEADER_CLASS}, .${DOCUMENT_GREETING_CLASS}, .${DOCUMENT_FOOTER_CLASS}`).forEach((node) => node.remove());
+    document.querySelectorAll(`.${DOCUMENT_HEADER_CLASS}, .${DOCUMENT_GREETING_CLASS}, .${DOCUMENT_TITLE_CLASS}, .${DOCUMENT_FOOTER_CLASS}`).forEach((node) => node.remove());
     document.getElementById(STYLE_ID)?.remove();
     document.getElementById(CHROME_ID)?.remove();
+    proseCleanup?.();
+    proseCleanup = null;
+    proseRestore?.();
+    proseRestore = null;
+  };
+
+  const composeEditable = () => document.querySelector('.composer-surface-chrome [contenteditable="true"], .composer-surface-chrome textarea');
+
+  const composerText = (editable) => editable?.isContentEditable ? (editable.textContent || "") : (editable?.value || "");
+  const setComposerText = (editable, value) => {
+    if (!editable) return false;
+    editable.focus?.();
+    if (editable.isContentEditable) {
+      const selection = window.getSelection?.();
+      const range = document.createRange?.();
+      if (selection && range) {
+        range.selectNodeContents(editable);
+        range.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+      const inserted = document.execCommand?.("insertText", false, value);
+      if (!inserted && editable.textContent !== value) editable.textContent = value;
+    } else {
+      editable.value = value;
+    }
+    editable.dispatchEvent?.(new Event("input", { bubbles: true }));
+    return true;
+  };
+
+  const ensureProseWrapper = () => {
+    if (!config.prose.enabled) return;
+    const editable = composeEditable();
+    const composer = editable?.closest?.(".composer-surface-chrome");
+    if (!editable || !composer) return;
+    if (proseTarget === editable && proseCleanup) return;
+    proseCleanup?.();
+    proseTarget = editable;
+    let wrapping = false;
+    const wrapCurrentMessage = () => {
+      if (wrapping) return;
+      const original = composerText(editable);
+      if (!original.trim() || original.includes(PROSE_WRAPPER_START)) return;
+      wrapping = true;
+      setComposerText(editable, `${PROSE_WRAPPER}\n\n用户原始请求如下：\n${original}`);
+      // Native send handlers run after capture listeners. Restore the visible
+      // draft in the next task so the wrapper never remains in the composer.
+      const restore = () => {
+        if (composerText(editable).includes(PROSE_WRAPPER_START)) setComposerText(editable, original);
+        wrapping = false;
+        if (proseRestore === restore) proseRestore = null;
+      };
+      proseRestore = restore;
+      setTimeout(restore, 80);
+    };
+    const isNativeSendButton = (button) => {
+      if (!button || !composer.contains(button) || !button.querySelector?.("svg")) return false;
+      if (button.hasAttribute?.("data-composer-navigation-target") || button.getAttribute?.("aria-label")) return false;
+      const candidates = [...composer.querySelectorAll?.('button:not([data-composer-navigation-target]):not([aria-label])') || []]
+        .filter((node) => node.querySelector?.("svg"));
+      return candidates.at(-1) === button;
+    };
+    const onClickCapture = (event) => {
+      const button = event.target?.closest?.("button");
+      if (!event.defaultPrevented && !button?.disabled && isNativeSendButton(button)) wrapCurrentMessage();
+    };
+    const onKeyDownCapture = (event) => {
+      if (event.defaultPrevented || event.key !== "Enter" || event.shiftKey || event.ctrlKey || event.altKey || event.metaKey || event.isComposing) return;
+      wrapCurrentMessage();
+    };
+    composer.addEventListener("click", onClickCapture, true);
+    editable.addEventListener("keydown", onKeyDownCapture, true);
+    proseCleanup = () => {
+      composer.removeEventListener?.("click", onClickCapture, true);
+      editable.removeEventListener?.("keydown", onKeyDownCapture, true);
+      proseTarget = null;
+      proseRestore?.();
+    };
+  };
+
+  const documentTitleFrom = (message) => {
+    for (const pre of message.querySelectorAll?.("pre") || []) {
+      // Codex renders the fenced-code language (for example, "json") in the
+      // same preformatted block on some builds. Parse from the JSON object,
+      // rather than requiring the block's textContent to begin with "{".
+      const raw = (pre.querySelector?.("code")?.textContent || pre.textContent || "").trim();
+      const objectStart = raw.indexOf("{");
+      if (objectStart < 0) continue;
+      try {
+        const title = JSON.parse(raw.slice(objectStart))?.codex_document?.title;
+        if (typeof title !== "string") continue;
+        // It is still metadata even when a legacy response used an invalid
+        // title. Keep that transport block out of the rendered document.
+        pre.classList?.add(DOCUMENT_METADATA_CLASS);
+        const value = title.trim().replace(/[\r\n]/g, " ");
+        if (!/^关于.+的(?:通知|通报|报告|请示|批复|函|纪要|公告|通告|意见|决定|命令|公报|议案|办法|规定|细则|方案|总结)$/.test(value)) continue;
+        if (value.length > 56) continue;
+        return value;
+      } catch {}
+    }
+    return "";
   };
 
   const ensureDocumentResponses = () => {
@@ -366,8 +492,22 @@
         message.prepend(greeting);
       }
       greeting.textContent = config.document.greeting;
-      // prepend inserts in reverse order, keeping the greeting between the
-      // masthead and native response content without moving that content.
+      const titleText = documentTitleFrom(message);
+      let title = message.querySelector(`:scope > .${DOCUMENT_TITLE_CLASS}`);
+      if (titleText) {
+        if (!title) {
+          title = document.createElement("div");
+          title.className = DOCUMENT_TITLE_CLASS;
+          title.setAttribute("aria-label", "文档标题");
+        }
+        title.textContent = titleText;
+        message.prepend(title);
+      } else {
+        title?.remove();
+      }
+      // Prepend in reverse order so the shell remains header, greeting,
+      // structured title, then the unchanged native response content.
+      message.prepend(greeting);
       message.prepend(header);
 
       let footer = message.querySelector(`:scope > .${DOCUMENT_FOOTER_CLASS}`);
@@ -470,6 +610,7 @@
     if (config.mode === "codex-document") {
       root.classList.remove(...ROOT_CLASSES);
       ensureDocumentResponses();
+      ensureProseWrapper();
       return;
     }
 
@@ -535,7 +676,10 @@
   });
   const timer = setInterval(ensure, 5000);
   window[STATE_KEY] = {
-    ensure, cleanup, observer, timer, scheduler, artUrl, profile, config, installToken, version: "1.3.0",
+    ensure, cleanup, observer, timer, scheduler, artUrl, profile, config, installToken,
+    // Reapplication must cancel both listeners and any in-flight, temporary
+    // composer substitution from the previous renderer instance.
+    proseCleanup: () => proseCleanup?.(), version: "1.4.0",
   };
   ensure();
   analyzeArt().then((result) => {
@@ -545,5 +689,5 @@
     state.profile = result;
     ensure();
   });
-  return { installed: true, version: "1.3.0", adaptive: config.mode !== "codex-document", documentMode: config.mode === "codex-document" };
+  return { installed: true, version: "1.4.0", adaptive: config.mode !== "codex-document", documentMode: config.mode === "codex-document" };
 })(__DREAM_CSS_JSON__, __DREAM_ART_JSON__, __DREAM_THEME_JSON__)
