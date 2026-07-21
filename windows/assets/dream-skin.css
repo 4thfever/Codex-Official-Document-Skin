@@ -191,6 +191,68 @@ html.codex-document-mode .codex-document-response a {
   color: color-mix(in srgb, var(--codex-document-accent, #8b1e1e) 82%, #111) !important;
 }
 
+html.codex-document-mode #codex-document-feedback-board {
+  box-sizing: border-box;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: 104px;
+  height: 40px;
+  flex: 0 0 104px;
+  margin-right: 6px;
+  padding: 3px;
+  border: 1px solid var(--codex-document-border, #d8d1c6);
+  border-radius: 2px;
+  background: var(--codex-document-surface, #fcfbf7);
+}
+
+html.codex-document-mode #codex-document-feedback-board .codex-document-feedback-canvas {
+  display: block;
+  width: 42px;
+  height: 32px;
+  flex: 0 0 42px;
+  touch-action: none;
+  cursor: crosshair;
+  border: 1px solid color-mix(in srgb, var(--codex-document-border, #d8d1c6) 82%, transparent);
+  background: transparent;
+}
+
+html.codex-document-mode #codex-document-feedback-board .codex-document-feedback-icon {
+  display: grid;
+  width: 18px;
+  height: 24px;
+  flex: 0 0 18px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  color: var(--codex-document-accent, #8b1e1e);
+  background: transparent;
+  font: 600 16px/1 system-ui, sans-serif;
+}
+
+html.codex-document-mode #codex-document-feedback-board .codex-document-feedback-icon:hover {
+  background: color-mix(in srgb, var(--codex-document-accent, #8b1e1e) 10%, transparent);
+}
+
+html.codex-document-mode #codex-document-feedback-board .codex-document-feedback-auto {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 12px;
+  margin: 0;
+  accent-color: var(--codex-document-accent, #8b1e1e);
+}
+
+html.codex-document-mode #codex-document-feedback-board .codex-document-feedback-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
 /* End CODEX Document Mode. */
 
 :root.codex-dream-skin.dream-theme-dark {

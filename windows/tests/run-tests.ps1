@@ -867,6 +867,8 @@ try {
     'codex-document-response-header',
     'codex-document-response-footer',
     '从这里继续新任务',
+    'codex-document-feedback-board',
+    'feedbackInsideComposer',
     'const documentPass = result.documentMode',
     'result.documentHeaders === result.documentResponses',
     'result.documentFooters === result.documentResponses'

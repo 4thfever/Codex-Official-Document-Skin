@@ -39,6 +39,10 @@
   const DOCUMENT_SIGNATURE_CLASS = "codex-document-response-signature";
   const DOCUMENT_DATE_CLASS = "codex-document-response-date";
   const DOCUMENT_METADATA_CLASS = "codex-document-response-metadata";
+  const FEEDBACK_BOARD_ID = "codex-document-feedback-board";
+  const FEEDBACK_STATUS_CLASS = "codex-document-feedback-status";
+  const FEEDBACK_AGREE = "【反馈：同意】";
+  const FEEDBACK_DISAGREE = "【反馈：不同意】";
   const PROSE_WRAPPER_START = "[CODEX_DOCUMENT_PROSE_WRAPPER_START]";
   const PROSE_WRAPPER_END = "[CODEX_DOCUMENT_PROSE_WRAPPER_END]";
   const PROSE_USER_REQUEST_MARKER = "用户原始请求如下：";
@@ -64,6 +68,8 @@ ${PROSE_WRAPPER_END}
   let proseCleanup = null;
   let proseTarget = null;
   let proseRestore = null;
+  let feedbackCleanup = null;
+  let feedbackTarget = null;
   window.__CODEX_DREAM_SKIN_DISABLED__ = false;
 
   const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, Number(value)));
@@ -141,6 +147,7 @@ ${PROSE_WRAPPER_END}
         border: documentColor(documentConfig.border, "#D8D1C6"),
       },
       prose: { enabled: proseConfig.enabled !== false },
+      feedback: { autoSend: config?.feedback?.autoSend !== false },
     };
   };
 
@@ -149,6 +156,7 @@ ${PROSE_WRAPPER_END}
   if (previous?.timer) clearInterval(previous.timer);
   if (previous?.scheduler?.timeout) clearTimeout(previous.scheduler.timeout);
   previous?.proseCleanup?.();
+  previous?.feedbackCleanup?.();
   if (previous?.artUrl) URL.revokeObjectURL(previous.artUrl);
   const artUrl = (() => {
     const comma = artDataUrl.indexOf(",");
@@ -352,6 +360,8 @@ ${PROSE_WRAPPER_END}
     proseCleanup = null;
     proseRestore?.();
     proseRestore = null;
+    feedbackCleanup?.();
+    feedbackCleanup = null;
   };
 
   const composeEditable = () => document.querySelector('.composer-surface-chrome [contenteditable="true"], .composer-surface-chrome textarea');
@@ -375,6 +385,203 @@ ${PROSE_WRAPPER_END}
     }
     editable.dispatchEvent?.(new Event("input", { bubbles: true }));
     return true;
+  };
+
+  const pointDistance = (first, second) => Math.hypot(first.x - second.x, first.y - second.y);
+  const clamp01 = (value) => Math.min(1, Math.max(0, value));
+  const normalizedStrokes = (strokes) => {
+    const points = strokes.flat();
+    if (points.length < 8) return [];
+    const minX = Math.min(...points.map((point) => point.x));
+    const maxX = Math.max(...points.map((point) => point.x));
+    const minY = Math.min(...points.map((point) => point.y));
+    const maxY = Math.max(...points.map((point) => point.y));
+    const width = maxX - minX;
+    const height = maxY - minY;
+    const diagonal = Math.hypot(width, height);
+    if (diagonal < .08) return [];
+    const resample = (stroke) => {
+      const result = [];
+      let previous = null;
+      for (const point of stroke) {
+        const normalized = { x: (point.x - minX) / diagonal, y: (point.y - minY) / diagonal };
+        if (!previous || pointDistance(previous, normalized) >= .018) {
+          result.push(normalized);
+          previous = normalized;
+        }
+      }
+      return result.length >= 2 ? result : [];
+    };
+    return strokes.map(resample).filter((stroke) => stroke.length >= 2);
+  };
+
+  const segmentIntersection = (first, second, third, fourth) => {
+    const cross = (left, right) => left.x * right.y - left.y * right.x;
+    const firstVector = { x: second.x - first.x, y: second.y - first.y };
+    const secondVector = { x: fourth.x - third.x, y: fourth.y - third.y };
+    const offset = { x: third.x - first.x, y: third.y - first.y };
+    const divisor = cross(firstVector, secondVector);
+    if (Math.abs(divisor) < 1e-6) return false;
+    const firstRatio = cross(offset, secondVector) / divisor;
+    const secondRatio = cross(offset, firstVector) / divisor;
+    return firstRatio > .04 && firstRatio < .96 && secondRatio > .04 && secondRatio < .96;
+  };
+
+  const circleScore = (strokes) => {
+    if (strokes.length !== 1) return 0;
+    const points = strokes[0];
+    if (points.length < 12) return 0;
+    const first = points[0];
+    const last = points.at(-1);
+    const closure = pointDistance(first, last);
+    if (closure > .34) return 0;
+    const center = points.reduce((sum, point) => ({ x: sum.x + point.x, y: sum.y + point.y }), { x: 0, y: 0 });
+    center.x /= points.length;
+    center.y /= points.length;
+    let xx = 0;
+    let xy = 0;
+    let yy = 0;
+    for (const point of points) {
+      const x = point.x - center.x;
+      const y = point.y - center.y;
+      xx += x * x;
+      xy += x * y;
+      yy += y * y;
+    }
+    xx /= points.length;
+    xy /= points.length;
+    yy /= points.length;
+    const determinant = xx * yy - xy * xy;
+    if (determinant < 1e-5) return 0;
+    const radii = points.map((point) => {
+      const x = point.x - center.x;
+      const y = point.y - center.y;
+      return Math.sqrt(Math.max(0, (yy * x * x - 2 * xy * x * y + xx * y * y) / determinant));
+    });
+    const radiusMean = radii.reduce((sum, value) => sum + value, 0) / radii.length;
+    const radiusDeviation = Math.sqrt(radii.reduce((sum, value) => sum + (value - radiusMean) ** 2, 0) / radii.length) / radiusMean;
+    const angles = points.map((point) => Math.atan2(point.y - center.y, point.x - center.x));
+    const bins = new Set(angles.map((angle) => Math.floor(((angle + Math.PI) / (2 * Math.PI)) * 16) % 16));
+    let winding = 0;
+    for (let index = 1; index < angles.length; index += 1) {
+      let delta = angles[index] - angles[index - 1];
+      while (delta > Math.PI) delta -= 2 * Math.PI;
+      while (delta < -Math.PI) delta += 2 * Math.PI;
+      winding += delta;
+    }
+    let intersections = 0;
+    for (let index = 0; index < points.length - 1; index += 1) {
+      for (let other = index + 3; other < points.length - 1; other += 1) {
+        if (index === 0 && other === points.length - 2) continue;
+        if (segmentIntersection(points[index], points[index + 1], points[other], points[other + 1])) intersections += 1;
+      }
+    }
+    const closureScore = clamp01(1 - closure / .34);
+    const coverageScore = clamp01((bins.size - 9) / 6);
+    const windingScore = clamp01(1 - Math.abs(Math.abs(winding) / (2 * Math.PI) - 1) / .42);
+    const radiusScore = clamp01(1 - radiusDeviation / .42);
+    const intersectionScore = intersections ? 0 : 1;
+    return Math.min(closureScore, coverageScore, windingScore, radiusScore, intersectionScore);
+  };
+
+  const lineFrom = (first, second) => {
+    const length = pointDistance(first, second);
+    if (length < .24) return null;
+    const dx = (second.x - first.x) / length;
+    const dy = (second.y - first.y) / length;
+    return { x: first.x, y: first.y, dx, dy };
+  };
+  const lineProjection = (line, point) => (point.x - line.x) * line.dx + (point.y - line.y) * line.dy;
+  const lineDistance = (line, point) => Math.abs((point.x - line.x) * line.dy - (point.y - line.y) * line.dx);
+  const lineIntersection = (first, second) => {
+    const divisor = first.dx * second.dy - first.dy * second.dx;
+    if (Math.abs(divisor) < .001) return null;
+    const offsetX = second.x - first.x;
+    const offsetY = second.y - first.y;
+    const firstScale = (offsetX * second.dy - offsetY * second.dx) / divisor;
+    return { x: first.x + first.dx * firstScale, y: first.y + first.dy * firstScale };
+  };
+  const xScore = (strokes) => {
+    const points = strokes.flat();
+    if (points.length < 10) return 0;
+    if (strokes.length === 1) {
+      let turns = 0;
+      let previousAngle = null;
+      for (let index = 3; index < points.length; index += 3) {
+        const first = points[index - 3];
+        const second = points[index];
+        const angle = Math.atan2(second.y - first.y, second.x - first.x);
+        if (previousAngle !== null) {
+          let delta = angle - previousAngle;
+          while (delta > Math.PI) delta -= 2 * Math.PI;
+          while (delta < -Math.PI) delta += 2 * Math.PI;
+          if (Math.abs(delta) > .6) turns += 1;
+        }
+        previousAngle = angle;
+      }
+      // A one-stroke X has two direction changes: diagonal, turnaround, then
+      // the second diagonal. A V has only its single corner.
+      if (turns < 2) return 0;
+    }
+    const candidates = [];
+    const step = Math.max(1, Math.floor(points.length / 48));
+    for (let firstIndex = 0; firstIndex < points.length; firstIndex += step) {
+      for (let secondIndex = firstIndex + 1; secondIndex < points.length; secondIndex += step) {
+        const line = lineFrom(points[firstIndex], points[secondIndex]);
+        if (!line) continue;
+        const inliers = points.filter((point) => lineDistance(line, point) <= .055);
+        if (inliers.length < Math.max(5, Math.ceil(points.length * .28))) continue;
+        const projections = inliers.map((point) => lineProjection(line, point));
+        const span = Math.max(...projections) - Math.min(...projections);
+        if (span < .48) continue;
+        candidates.push({ line, inliers, projections, span });
+      }
+    }
+    let best = 0;
+    for (let firstIndex = 0; firstIndex < candidates.length; firstIndex += 1) {
+      for (let secondIndex = firstIndex + 1; secondIndex < candidates.length; secondIndex += 1) {
+        const first = candidates[firstIndex];
+        const second = candidates[secondIndex];
+        const dot = Math.abs(first.line.dx * second.line.dx + first.line.dy * second.line.dy);
+        const angleScore = clamp01((Math.acos(Math.min(1, dot)) - .55) / .75);
+        if (!angleScore) continue;
+        const intersection = lineIntersection(first.line, second.line);
+        if (!intersection) continue;
+        const interiorScore = (candidate) => {
+          const intersectionProjection = lineProjection(candidate.line, intersection);
+          const min = Math.min(...candidate.projections);
+          const max = Math.max(...candidate.projections);
+          const before = intersectionProjection - min;
+          const after = max - intersectionProjection;
+          return clamp01(Math.min(before, after) / (candidate.span * .18));
+        };
+        const interior = Math.min(interiorScore(first), interiorScore(second));
+        if (!interior) continue;
+        const covered = points.filter((point) => lineDistance(first.line, point) <= .055 || lineDistance(second.line, point) <= .055).length / points.length;
+        const balanced = Math.min(first.inliers.length, second.inliers.length) / Math.max(first.inliers.length, second.inliers.length);
+        const score = Math.min(angleScore, interior, clamp01((covered - .58) / .22), clamp01((balanced - .42) / .35));
+        best = Math.max(best, score);
+      }
+    }
+    return best;
+  };
+  const feedbackClassification = (rawStrokes) => {
+    const strokes = normalizedStrokes(rawStrokes);
+    const circle = circleScore(strokes);
+    const cross = xScore(strokes);
+    const threshold = .72;
+    const margin = .14;
+    if (circle >= threshold && circle - cross >= margin) return { kind: "agree", score: circle, circle, cross };
+    if (cross >= threshold && cross - circle >= margin) return { kind: "disagree", score: cross, circle, cross };
+    return { kind: "unknown", score: Math.max(circle, cross), circle, cross };
+  };
+  const feedbackHash = (strokes) => JSON.stringify(normalizedStrokes(strokes).map((stroke) =>
+    stroke.map((point) => [Math.round(point.x * 100), Math.round(point.y * 100)])));
+
+  const nativeSendButton = (composer) => {
+    const candidates = [...composer?.querySelectorAll?.('button:not([data-composer-navigation-target]):not([aria-label])') || []]
+      .filter((node) => node.querySelector?.("svg"));
+    return candidates.at(-1) || null;
   };
 
   const ensureProseWrapper = () => {
@@ -405,9 +612,7 @@ ${PROSE_WRAPPER_END}
     const isNativeSendButton = (button) => {
       if (!button || !composer.contains(button) || !button.querySelector?.("svg")) return false;
       if (button.hasAttribute?.("data-composer-navigation-target") || button.getAttribute?.("aria-label")) return false;
-      const candidates = [...composer.querySelectorAll?.('button:not([data-composer-navigation-target]):not([aria-label])') || []]
-        .filter((node) => node.querySelector?.("svg"));
-      return candidates.at(-1) === button;
+      return nativeSendButton(composer) === button;
     };
     const onClickCapture = (event) => {
       const button = event.target?.closest?.("button");
@@ -424,6 +629,168 @@ ${PROSE_WRAPPER_END}
       editable.removeEventListener?.("keydown", onKeyDownCapture, true);
       proseTarget = null;
       proseRestore?.();
+    };
+  };
+
+  const ensureFeedbackBoard = () => {
+    const editable = composeEditable();
+    const composer = editable?.closest?.(".composer-surface-chrome");
+    const addFileButton = composer?.querySelector?.('button[aria-label="添加文件等内容"]');
+    if (!editable || !composer || !addFileButton) return;
+    if (feedbackTarget === editable && feedbackCleanup) return;
+    feedbackCleanup?.();
+    feedbackTarget = editable;
+    const board = document.createElement("div");
+    board.id = FEEDBACK_BOARD_ID;
+    board.setAttribute("role", "group");
+    board.setAttribute("aria-label", "圈叉反馈标记");
+    const canvas = document.createElement("canvas");
+    canvas.className = "codex-document-feedback-canvas";
+    canvas.setAttribute("aria-label", "绘制同意或不同意标记");
+    const undo = document.createElement("button");
+    undo.type = "button";
+    undo.className = "codex-document-feedback-icon";
+    undo.textContent = "↶";
+    undo.setAttribute("aria-label", "撤销最近笔画");
+    undo.title = "撤销最近笔画";
+    const clear = document.createElement("button");
+    clear.type = "button";
+    clear.className = "codex-document-feedback-icon";
+    clear.textContent = "×";
+    clear.setAttribute("aria-label", "清空标记");
+    clear.title = "清空标记";
+    const auto = document.createElement("input");
+    auto.type = "checkbox";
+    auto.className = "codex-document-feedback-auto";
+    auto.checked = config.feedback.autoSend;
+    auto.setAttribute("aria-label", "自动发送反馈");
+    auto.title = "自动发送反馈";
+    const status = document.createElement("span");
+    status.className = FEEDBACK_STATUS_CLASS;
+    status.setAttribute("aria-live", "polite");
+    board.append(canvas, undo, clear, auto, status);
+    addFileButton.parentElement?.insertBefore?.(board, addFileButton);
+    if (!board.parentElement) return;
+
+    const state = { strokes: [], current: null, pointerId: null, wasEmpty: false, timer: null, sent: new Set(), disposed: false };
+    const redraw = () => {
+      const rect = canvas.getBoundingClientRect?.() || { width: 48, height: 48 };
+      const width = Math.max(32, rect.width || 48);
+      const height = Math.max(32, rect.height || 48);
+      const ratio = Math.max(1, Math.min(3, Number(window.devicePixelRatio) || 1));
+      canvas.width = Math.round(width * ratio);
+      canvas.height = Math.round(height * ratio);
+      const context = canvas.getContext?.("2d");
+      if (!context) return;
+      context.setTransform?.(ratio, 0, 0, ratio, 0, 0);
+      context.clearRect?.(0, 0, width, height);
+      context.strokeStyle = "#b42318";
+      context.lineWidth = 2.5;
+      context.lineCap = "round";
+      context.lineJoin = "round";
+      for (const stroke of state.strokes) {
+        if (stroke.length < 2) continue;
+        context.beginPath();
+        context.moveTo(stroke[0].x * width, stroke[0].y * height);
+        for (const point of stroke.slice(1)) context.lineTo(point.x * width, point.y * height);
+        context.stroke();
+      }
+    };
+    const reset = () => {
+      state.strokes = [];
+      state.current = null;
+      state.sent.clear();
+      status.textContent = "";
+      redraw();
+    };
+    const appendAndMaybeSend = () => {
+      if (state.disposed || !state.strokes.length) return;
+      const hash = feedbackHash(state.strokes);
+      if (!hash || state.sent.has(hash)) return;
+      const result = feedbackClassification(state.strokes);
+      const feedback = result.kind === "agree" ? FEEDBACK_AGREE : result.kind === "disagree" ? FEEDBACK_DISAGREE : "";
+      if (!feedback) {
+        status.textContent = "未识别";
+        return;
+      }
+      const currentText = composerText(editable);
+      const canAutoSend = state.wasEmpty && !currentText.trim() && auto.checked;
+      const appended = currentText ? `${currentText}${currentText.endsWith("\n") ? "" : "\n"}${feedback}` : feedback;
+      if (!setComposerText(editable, appended)) {
+        status.textContent = "写入失败";
+        return;
+      }
+      state.sent.add(hash);
+      status.textContent = result.kind === "agree" ? "同意" : "不同意";
+      if (!canAutoSend) return;
+      const sendWhenReady = (attempt = 0) => {
+        if (state.disposed || composerText(editable).trim() !== feedback) return;
+        const button = nativeSendButton(composer);
+        if (button && !button.disabled && button.getAttribute?.("aria-busy") !== "true") {
+          button.click?.();
+          return;
+        }
+        if (attempt < 7) setTimeout(() => sendWhenReady(attempt + 1), 80);
+      };
+      setTimeout(sendWhenReady, 80);
+    };
+    const scheduleRecognition = () => {
+      if (state.timer) clearTimeout(state.timer);
+      state.timer = setTimeout(() => {
+        state.timer = null;
+        appendAndMaybeSend();
+      }, 380);
+    };
+    const pointFrom = (event) => {
+      const rect = canvas.getBoundingClientRect?.() || { left: 0, top: 0, width: 48, height: 48 };
+      return {
+        x: clamp((event.clientX - rect.left) / Math.max(1, rect.width), 0, 1),
+        y: clamp((event.clientY - rect.top) / Math.max(1, rect.height), 0, 1),
+      };
+    };
+    const onPointerDown = (event) => {
+      if (state.timer) { clearTimeout(state.timer); state.timer = null; }
+      if (state.sent.size) reset();
+      state.wasEmpty = !composerText(editable).trim();
+      state.pointerId = event.pointerId;
+      state.current = [pointFrom(event)];
+      state.strokes.push(state.current);
+      try { canvas.setPointerCapture?.(event.pointerId); } catch {}
+      event.preventDefault?.();
+      redraw();
+    };
+    const onPointerMove = (event) => {
+      if (event.pointerId !== state.pointerId || !state.current) return;
+      const point = pointFrom(event);
+      if (pointDistance(state.current.at(-1), point) >= .008) state.current.push(point);
+      redraw();
+    };
+    const onPointerEnd = (event) => {
+      if (event.pointerId !== state.pointerId) return;
+      state.pointerId = null;
+      state.current = null;
+      try { canvas.releasePointerCapture?.(event.pointerId); } catch {}
+      scheduleRecognition();
+    };
+    const onUndo = () => { state.strokes.pop(); state.sent.clear(); status.textContent = ""; redraw(); };
+    canvas.addEventListener("pointerdown", onPointerDown);
+    canvas.addEventListener("pointermove", onPointerMove);
+    canvas.addEventListener("pointerup", onPointerEnd);
+    canvas.addEventListener("pointercancel", onPointerEnd);
+    undo.addEventListener("click", onUndo);
+    clear.addEventListener("click", reset);
+    redraw();
+    feedbackCleanup = () => {
+      state.disposed = true;
+      if (state.timer) clearTimeout(state.timer);
+      canvas.removeEventListener?.("pointerdown", onPointerDown);
+      canvas.removeEventListener?.("pointermove", onPointerMove);
+      canvas.removeEventListener?.("pointerup", onPointerEnd);
+      canvas.removeEventListener?.("pointercancel", onPointerEnd);
+      undo.removeEventListener?.("click", onUndo);
+      clear.removeEventListener?.("click", reset);
+      board.remove?.();
+      feedbackTarget = null;
     };
   };
 
@@ -646,6 +1013,7 @@ ${PROSE_WRAPPER_END}
       root.classList.remove(...ROOT_CLASSES);
       ensureDocumentResponses();
       ensureProseWrapper();
+      ensureFeedbackBoard();
       return;
     }
 
@@ -715,7 +1083,10 @@ ${PROSE_WRAPPER_END}
     ensure, cleanup, observer, timer, scheduler, artUrl, profile, config, installToken,
     // Reapplication must cancel both listeners and any in-flight, temporary
     // composer substitution from the previous renderer instance.
-    proseCleanup: () => proseCleanup?.(), version: "1.4.0",
+    proseCleanup: () => proseCleanup?.(),
+    feedbackCleanup: () => feedbackCleanup?.(),
+    feedback: { classify: feedbackClassification, hash: feedbackHash },
+    version: "1.5.0",
   };
   ensure();
   analyzeArt().then((result) => {
@@ -725,5 +1096,5 @@ ${PROSE_WRAPPER_END}
     state.profile = result;
     ensure();
   });
-  return { installed: true, version: "1.4.0", adaptive: config.mode !== "codex-document", documentMode: config.mode === "codex-document" };
+  return { installed: true, version: "1.5.0", adaptive: config.mode !== "codex-document", documentMode: config.mode === "codex-document" };
 })(__DREAM_CSS_JSON__, __DREAM_ART_JSON__, __DREAM_THEME_JSON__)

@@ -20,5 +20,8 @@
     "surface": "#FCFBF7",
     "text": "#24201D",
     "border": "#D8D1C6"
+  },
+  "feedback": {
+    "autoSend": true
   }
 }

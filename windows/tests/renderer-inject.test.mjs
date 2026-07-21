@@ -459,6 +459,30 @@ assert.equal(documentMode.assistantMessage.children[2].className, "codex-documen
 assert.equal(documentMode.assistantMessage.children[2].children[0].textContent, "此致");
 assert.equal(documentMode.assistantMessage.children[2].children[1].textContent, "山姆·奥特曼");
 assert.match(documentMode.assistantMessage.children[2].children[2].textContent, /^\d{4}年\d{1,2}月\d{1,2}日$/);
+const feedback = documentMode.context.window.__CODEX_DREAM_SKIN_STATE__.feedback;
+const line = (from, to, steps = 18) => Array.from({ length: steps + 1 }, (_, index) => ({
+  x: from.x + ((to.x - from.x) * index / steps),
+  y: from.y + ((to.y - from.y) * index / steps),
+}));
+const circle = Array.from({ length: 49 }, (_, index) => {
+  const angle = index * 2 * Math.PI / 48;
+  return { x: .5 + .33 * Math.cos(angle), y: .5 + .24 * Math.sin(angle) };
+});
+assert.equal(feedback.classify([circle]).kind, "agree", "Elliptical closed strokes must map to agreement.");
+assert.equal(feedback.classify([
+  line({ x: .16, y: .14 }, { x: .84, y: .86 }),
+  line({ x: .84, y: .14 }, { x: .16, y: .86 }),
+]).kind, "disagree", "Two-stroke crosses must map to disagreement.");
+assert.equal(feedback.classify([[
+  ...line({ x: .16, y: .14 }, { x: .84, y: .86 }),
+  ...line({ x: .84, y: .86 }, { x: .84, y: .14 }).slice(1),
+  ...line({ x: .84, y: .14 }, { x: .16, y: .86 }).slice(1),
+]]).kind, "disagree", "Connected crosses may contain a short turnaround segment.");
+assert.equal(feedback.classify([[
+  ...line({ x: .18, y: .18 }, { x: .5, y: .82 }),
+  ...line({ x: .5, y: .82 }, { x: .82, y: .18 }).slice(1),
+]]).kind, "unknown", "A V shape must not be mapped to disagreement.");
+assert.equal(feedback.classify([line({ x: .15, y: .25 }, { x: .75, y: .8 })]).kind, "unknown", "An open stroke must not be mapped to agreement.");
 documentMode.context.window.__CODEX_DREAM_SKIN_STATE__.ensure();
 assert.equal(documentMode.assistantMessage.children.length, 3, "Document shell must remain idempotent during streaming updates.");
 assert.equal(documentMode.context.window.__CODEX_DREAM_SKIN_STATE__.cleanup(), true);
@@ -531,6 +555,13 @@ assert.match(template, /ensureProseWrapper/, "The prose wrapper must install dur
 assert.match(template, /removeEventListener\?\.\("click", onClickCapture, true\)/, "Cleanup must remove the native send wrapper listener.");
 assert.doesNotMatch(template, /PROSE_TOGGLE_ID/, "The prose wrapper must not expose a visible toggle.");
 assert.match(proseGuide, /妥否，请批示/, "The full prose guide must include formal phrase rules.");
+assert.match(template, /feedbackClassification/, "Document mode must provide local circle/cross classification.");
+assert.match(template, /nativeSendButton/, "Auto-send must use the native composer send control.");
+assert.match(template, /state\.wasEmpty && !currentText\.trim\(\) && auto\.checked/,
+  "Auto-send must require an originally and currently empty composer.");
+assert.match(template, /turns < 2/, "One-stroke V gestures must not be accepted as connected crosses.");
+assert.match(css, /#codex-document-feedback-board/, "Document mode must style its scoped feedback board.");
+assert.match(css, /touch-action: none/, "The feedback canvas must own pointer gestures only within its bounds.");
 
 const analysisPixels = new Uint8ClampedArray(48 * 12 * 4);
 for (let index = 0; index < 48 * 12; index += 1) {
