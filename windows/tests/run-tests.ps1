@@ -29,6 +29,22 @@ try {
   $sourceRenderer = Get-FileHash -LiteralPath (Join-Path $runtimeSource 'assets\renderer-inject.js') -Algorithm SHA256
   $engineRenderer = Get-FileHash -LiteralPath (Join-Path $engine.Root 'assets\renderer-inject.js') -Algorithm SHA256
   Assert-TestCondition -Condition ($sourceRenderer.Hash -ceq $engineRenderer.Hash) -Message 'Installed renderer does not match its verified source.'
+  $themeState = Join-Path $temporaryRoot 'theme-migration-state'
+  $themePaths = Initialize-DreamSkinThemeStore -SkillRoot $runtimeSource -StateRoot $themeState
+  $legacyTheme = Read-DreamSkinTheme -ThemeDirectory (Join-Path $themePaths.Saved 'preset-codex-document')
+  $oldSignature = 'Codex' + [string]([char]0x5c0f) + [char]0x52a9 + [char]0x624b
+  $newSignature = [string]([char]0x5c71) + [char]0x59c6 + [char]0x00b7 + [char]0x5965 + [char]0x7279 + [char]0x66fc
+  $customSignature = [string]([char]0x81ea) + [char]0x5b9a + [char]0x4e49 + [char]0x7f72 + [char]0x540d
+  $legacyTheme.Theme.document.signature = $oldSignature
+  Write-DreamSkinTheme -ThemeDirectory $legacyTheme.Directory -Theme $legacyTheme.Theme
+  Initialize-DreamSkinThemeStore -SkillRoot $runtimeSource -StateRoot $themeState | Out-Null
+  $migratedTheme = Read-DreamSkinTheme -ThemeDirectory (Join-Path $themePaths.Saved 'preset-codex-document')
+  Assert-TestCondition -Condition ($migratedTheme.Theme.document.signature -ceq $newSignature) -Message 'Historical document signature was not migrated.'
+  $migratedTheme.Theme.document.signature = $customSignature
+  Write-DreamSkinTheme -ThemeDirectory $migratedTheme.Directory -Theme $migratedTheme.Theme
+  Initialize-DreamSkinThemeStore -SkillRoot $runtimeSource -StateRoot $themeState | Out-Null
+  $preservedTheme = Read-DreamSkinTheme -ThemeDirectory (Join-Path $themePaths.Saved 'preset-codex-document')
+  Assert-TestCondition -Condition ($preservedTheme.Theme.document.signature -ceq $customSignature) -Message 'Theme migration overwrote a custom signature.'
   Remove-Item -LiteralPath $runtimeSource -Recurse -Force
   Assert-TestCondition -Condition (Test-Path -LiteralPath $engine.Start -PathType Leaf) -Message 'Installed runtime depends on the source checkout.'
 

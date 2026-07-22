@@ -196,6 +196,23 @@ function Test-DreamSkinLegacyDocumentPreset {
     $null -eq $document.signature
 }
 
+function Test-DreamSkinObsoleteDocumentSignaturePreset {
+  param([AllowNull()][object]$Theme)
+  if ($null -eq $Theme -or "$($Theme.id)" -cne 'preset-codex-document') { return $false }
+  $document = $Theme.document
+  $obsoleteSignature = 'Codex' + [string]([char]0x5c0f) + [char]0x52a9 + [char]0x624b
+  if ($null -eq $document -or "$($document.signature)" -cne $obsoleteSignature) { return $false }
+  # Migrate only the historical bundled preset shape. A user who changed any
+  # other document field retains their explicitly chosen signature unchanged.
+  return "$($document.masthead)" -ceq '美国科代克斯技术服务有限公司' -and
+    "$($document.greeting)" -ceq '尊敬的董事长：' -and
+    "$($document.closing)" -ceq '此致' -and
+    "$($document.accent)" -ceq '#8B1E1E' -and
+    "$($document.surface)" -ceq '#FCFBF7' -and
+    "$($document.text)" -ceq '#24201D' -and
+    "$($document.border)" -ceq '#D8D1C6'
+}
+
 function Initialize-DreamSkinThemeStore {
   param(
     [Parameter(Mandatory = $true)][string]$SkillRoot,
@@ -221,7 +238,9 @@ function Initialize-DreamSkinThemeStore {
   if ($hasDocumentSource -and -not $shouldSeedDocument) {
     try {
       $existingDocument = Read-DreamSkinTheme -ThemeDirectory $documentDirectory
-      $shouldMigrateLegacyDocument = Test-DreamSkinLegacyDocumentPreset -Theme $existingDocument.Theme
+      $shouldMigrateLegacyDocument =
+        (Test-DreamSkinLegacyDocumentPreset -Theme $existingDocument.Theme) -or
+        (Test-DreamSkinObsoleteDocumentSignaturePreset -Theme $existingDocument.Theme)
     } catch {
       throw "Existing CODEX Document preset cannot be read safely: $($_.Exception.Message)"
     }

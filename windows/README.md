@@ -48,6 +48,10 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-dream-
 
 先退出 Dream Skin 托盘并关闭 Codex，再更新仓库（`git pull`，或重新下载最新源码），然后重新运行上面的安装命令。安装器会原子替换受管运行时并重建快捷方式；当前主题、已保存主题和导入图片不会被删除。
 
+不要只复制 `assets`、`renderer-inject.js` 或单个预设到已安装目录。注入器和渲染脚本必须来自同一次安装；混用版本可能导致启动验证失败，例如日志同时出现 `expectedVersion` 与实际版本不一致，或 `__DREAM_PROSE_GUIDE__ is not defined`。遇到这类错误时，退出托盘和 Codex 后，重新运行安装命令，再从新建的 `Codex Dream Skin` 快捷方式启动。
+
+从浏览器下载 ZIP 后，Windows 可能给源码中的 `.ps1` 添加下载来源标记。若手动以 `RemoteSigned` 执行安装器并收到“未签名”错误，请使用 README 中的用户明确安装命令（其中的 `Bypass` 仅作用于该次安装），不要修改全局执行策略，也不要混用旧的受管运行时。
+
 ## 启动与验证
 
 推荐从 `Codex Dream Skin` 快捷方式启动。它发现 Codex 已经运行时会先询问是否重启。
@@ -155,6 +159,10 @@ Get-AppxPackage -Name OpenAI.Codex
 ### Codex 更新后皮肤失效
 
 重新运行安装器和启动快捷方式。脚本会重新发现当前注册的 Store 包，不依赖旧版本的可执行文件路径。
+
+### 文档落款回退为旧默认值
+
+新版默认落款为 `山姆·奥特曼`。安装器会迁移旧版 `Codex小助手` 预设，同时保留任何其他自定义署名；若仍显示旧值，请退出托盘和 Codex 后重新运行安装器。
 
 提交问题时请从仓库的 [Issue 提交页](https://github.com/Fei-Away/Codex-Dream-Skin/issues/new/choose) 选择 Bug 模板，附上系统版本、Codex 来源、复现步骤和相关日志片段。请删除密钥、`auth.json`、中转 token 和私人对话内容。
 
