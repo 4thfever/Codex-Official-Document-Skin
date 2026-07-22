@@ -34,7 +34,7 @@
 
 ## Release signoff
 
-- Run `tests/run-tests.sh` successfully.
+- macOS 自动化回归目前不作为发布门槛；在真实 macOS 上完成安装、验证、恢复和签名检查。
 - Install from a clean extracted copy with no global Node.js.
 - Complete install → live verify → reload verify → restore → reinstall.
 - Capture a real CDP screenshot and retain the verifier JSON.

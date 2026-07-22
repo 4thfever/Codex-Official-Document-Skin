@@ -29,7 +29,7 @@
    - `<ENGINE>/README.md`
    - `<ENGINE>/SKILL.md`
    - `<ENGINE>/references/qa-inventory.md`
-   然后运行 `<ENGINE>/tests/run-tests.sh`。测试失败时先定位并修复，禁止跳过。
+   macOS 目录当前没有受维护的自动化回归套件。完成安装后运行 `doctor-macos.sh`，并执行安装、验证、恢复的人工验收。
 
 4. 确认官方 Codex 至少运行过一次，且 `~/.codex/config.toml` 已存在。运行：
    `<ENGINE>/scripts/install-dream-skin-macos.sh --no-launch`

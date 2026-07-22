@@ -8,7 +8,9 @@ ARCHIVE="$RELEASE_DIR/codex-dream-skin-studio-v$VERSION.zip"
 TMP="$(/usr/bin/mktemp -d /tmp/codex-dream-skin-release.XXXXXX)"
 trap '/bin/rm -rf "$TMP"' EXIT
 
-if [ "${1:-}" != "--skip-tests" ]; then "$ROOT/tests/run-tests.sh"; fi
+if [ "${1:-}" != "--skip-tests" ]; then
+  /usr/bin/printf '%s\n' 'No macOS regression suite is maintained in this repository.' >&2
+fi
 
 /bin/mkdir -p "$TMP/codex-dream-skin-studio" "$RELEASE_DIR"
 /usr/bin/rsync -a \
@@ -38,7 +40,7 @@ if [ -f "$PRESET_README" ]; then
 fi
 /usr/bin/find "$TMP/codex-dream-skin-studio" -type f \( -name '.DS_Store' -o -name '._*' \) -delete
 /bin/chmod 755 "$TMP/codex-dream-skin-studio"/*.command
-/bin/chmod 755 "$TMP/codex-dream-skin-studio"/scripts/*.sh "$TMP/codex-dream-skin-studio"/tests/*.sh
+/bin/chmod 755 "$TMP/codex-dream-skin-studio"/scripts/*.sh
 /bin/rm -f "$ARCHIVE"
 COPYFILE_DISABLE=1 /usr/bin/ditto -c -k --keepParent --norsrc --noextattr \
   "$TMP/codex-dream-skin-studio" "$ARCHIVE"

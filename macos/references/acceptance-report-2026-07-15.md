@@ -14,7 +14,7 @@ Codex Dream Skin Studio `1.0.0` passed its macOS release checks on the live Code
 
 ## Automated result
 
-`tests/run-tests.sh` passed syntax, default and custom payload, exact TOML theme-setting round trip, missing-`HOME` recovery, signed runtime, and doctor checks.
+历史版本曾运行 `tests/run-tests.sh` 并通过语法、默认和自定义 payload、TOML 往返、缺失 `HOME` 恢复、签名运行时和 doctor 检查。该测试套件已随未维护的 macOS 换肤实现移除，不能作为当前发布结论。
 
 Live doctor returned `pass: true`, `officialAppSignatureValid: true`, `modifiesAppAsar: false`, and `live: true`.
 

@@ -28,8 +28,16 @@
 可在输入区圈阅：画圈表示同意，画叉表示不同意。识别结果会以可编辑文字写入当前输入框。
 
 <div align="center">
-  <img src="./assets/answer-yes.png" alt="圈阅同意" width="180" />
-  <img src="./assets/answer-no.png" alt="圈阅不同意" width="180" />
+  <table>
+    <tr>
+      <td align="center"><img src="./assets/answer-yes.png" alt="圈阅同意" width="180" /></td>
+      <td align="center"><img src="./assets/answer-no.png" alt="圈阅不同意" width="180" /></td>
+    </tr>
+    <tr>
+      <td align="center">同意</td>
+      <td align="center">不同意</td>
+    </tr>
+  </table>
 </div>
 
 ## 备注

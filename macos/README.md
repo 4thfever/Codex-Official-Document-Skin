@@ -17,23 +17,20 @@ This project injects through **local loopback CDP**. It does **not** modify the 
 ## Quick start (from this repo)
 
 ```bash
-# 1) Optional checks (needs the installed Codex/ChatGPT.app bundled Node)
-./tests/run-tests.sh
-
-# 2) Install to the stable path and create Desktop launchers
+# 1) Install to the stable path and create Desktop launchers
 ./scripts/install-dream-skin-macos.sh --no-launch
 
-# 3) Switch to the tested featured preset, or import your own pure background
+# 2) Switch to the tested featured preset, or import your own pure background
 ~/.codex/codex-dream-skin-studio/scripts/switch-theme-macos.sh --id preset-arina-hashimoto
 # ~/.codex/codex-dream-skin-studio/scripts/customize-theme-macos.sh
 
-# 4) Start/re-apply, verify, or restore via Desktop:
+# 3) Start/re-apply, verify, or restore via Desktop:
 #    Codex Dream Skin.command
 #    Codex Dream Skin - Customize.command
 #    Codex Dream Skin - Verify.command
 #    Codex Dream Skin - Restore.command
 
-# 5) Optional: menu bar (SwiftBar) — apply, pause, import, and switch
+# 4) Optional: menu bar (SwiftBar) — apply, pause, import, and switch
 ./Install\ Menu\ Bar.command
 # Look for 🎨 Skin in the top-right menu bar
 ```

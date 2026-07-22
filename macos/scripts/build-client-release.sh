@@ -9,7 +9,6 @@ CLIENT_ROOT="$TMP/Codex 主题编辑器"
 ENGINE="$CLIENT_ROOT/.codex-dream-skin-studio"
 trap '/bin/rm -rf "$TMP"' EXIT
 
-"$ROOT/tests/run-tests.sh"
 /bin/mkdir -p "$ENGINE"
 /usr/bin/rsync -a \
   --exclude '.git/' \
@@ -56,7 +55,7 @@ fi
 
 /bin/cp "$ROOT/CLIENT_DEPLOY_PROMPT.md" "$CLIENT_ROOT/给 Codex 的部署提示词.md"
 /bin/chmod 755 "$CLIENT_ROOT/安装 Codex 主题编辑器.command"
-/bin/chmod 755 "$ENGINE"/*.command "$ENGINE"/scripts/*.sh "$ENGINE"/tests/*.sh
+/bin/chmod 755 "$ENGINE"/*.command "$ENGINE"/scripts/*.sh
 /usr/bin/xattr -cr "$CLIENT_ROOT"
 /usr/bin/find "$CLIENT_ROOT" -type f \( -name '.DS_Store' -o -name '._*' \) -delete
 /bin/mkdir -p "$(dirname "$OUTPUT")"

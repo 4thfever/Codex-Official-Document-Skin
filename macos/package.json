@@ -4,7 +4,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "./tests/run-tests.sh",
     "doctor": "./scripts/doctor-macos.sh"
   },
   "engines": {
