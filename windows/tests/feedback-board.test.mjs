@@ -40,6 +40,21 @@ const context = {
 
 vm.runInNewContext(payload, context);
 const { classify } = context.window.__CODEX_DREAM_SKIN_STATE__.feedback;
+const { sendButtonFrom } = context.window.__CODEX_DREAM_SKIN_STATE__.stream;
+const button = (ariaLabel = null) => ({
+  querySelector(selector) { return selector === "svg" ? {} : null; },
+  getAttribute(name) { return name === "aria-label" ? ariaLabel : null; },
+});
+const attachment = button("附加文件");
+const labeledSend = button("发送消息");
+const legacySend = button();
+const composer = {
+  querySelectorAll() { return [attachment, legacySend, labeledSend]; },
+};
+assert.equal(sendButtonFrom(composer), labeledSend,
+  "A labeled native send control must be preferred over generic composer buttons.");
+assert.equal(sendButtonFrom({ querySelectorAll() { return [attachment, legacySend]; } }), legacySend,
+  "Older unlabeled native send controls must remain supported.");
 const line = (first, last, count = 24) => Array.from({ length: count }, (_, index) => ({
   x: first.x + (last.x - first.x) * index / (count - 1),
   y: first.y + (last.y - first.y) * index / (count - 1),

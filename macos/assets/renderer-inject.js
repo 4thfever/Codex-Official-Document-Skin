@@ -72,6 +72,8 @@ ${PROSE_WRAPPER_END}
   let proseCleanup = null;
   let proseTarget = null;
   let proseRestore = null;
+  let streamCleanup = null;
+  let streamTarget = null;
   let feedbackCleanup = null;
   let feedbackTarget = null;
   let pendingAssistantStream = null;
@@ -365,6 +367,9 @@ ${PROSE_WRAPPER_END}
     proseCleanup = null;
     proseRestore?.();
     proseRestore = null;
+    streamCleanup?.();
+    streamCleanup = null;
+    streamTarget = null;
     feedbackCleanup?.();
     feedbackCleanup = null;
     pendingAssistantStream = null;
@@ -601,13 +606,42 @@ ${PROSE_WRAPPER_END}
     stroke.map((point) => [Math.round(point.x * 100), Math.round(point.y * 100)])));
 
   const nativeSendButton = (composer) => {
-    const candidates = [...composer?.querySelectorAll?.('button:not([data-composer-navigation-target]):not([aria-label])') || []]
+    const candidates = [...composer?.querySelectorAll?.('button:not([data-composer-navigation-target])') || []]
       .filter((node) => node.querySelector?.("svg"));
-    return candidates.at(-1) || null;
+    const labeledSend = candidates.find((node) => /^(?:发送(?:消息)?|send(?: message)?)$/i.test(
+      (node.getAttribute?.("aria-label") || "").trim(),
+    ));
+    return labeledSend || candidates.filter((node) => !node.getAttribute?.("aria-label")).at(-1) || null;
   };
+  const isNativeSendButton = (composer, button) =>
+    Boolean(button && !button.disabled && composer?.contains?.(button) && nativeSendButton(composer) === button);
   const markPendingAssistantStream = () => {
     const knownTurns = new Set(document.querySelectorAll?.(ASSISTANT_TURN_SELECTOR) || []);
     pendingAssistantStream = { knownTurns, startedAt: Date.now(), node: null };
+  };
+
+  const ensureStreamTracking = () => {
+    const editable = composeEditable();
+    const composer = editable?.closest?.(".composer-surface-chrome");
+    if (!editable || !composer) return;
+    if (streamTarget === editable && streamCleanup) return;
+    streamCleanup?.();
+    streamTarget = editable;
+    const onClickCapture = (event) => {
+      const button = event.target?.closest?.("button");
+      if (!event.defaultPrevented && isNativeSendButton(composer, button)) markPendingAssistantStream();
+    };
+    const onKeyDownCapture = (event) => {
+      if (event.defaultPrevented || event.key !== "Enter" || event.shiftKey || event.ctrlKey || event.altKey || event.metaKey || event.isComposing) return;
+      markPendingAssistantStream();
+    };
+    composer.addEventListener("click", onClickCapture, true);
+    editable.addEventListener("keydown", onKeyDownCapture, true);
+    streamCleanup = () => {
+      composer.removeEventListener?.("click", onClickCapture, true);
+      editable.removeEventListener?.("keydown", onKeyDownCapture, true);
+      streamTarget = null;
+    };
   };
 
   const ensureProseWrapper = () => {
@@ -635,21 +669,12 @@ ${PROSE_WRAPPER_END}
       proseRestore = restore;
       setTimeout(restore, 80);
     };
-    const isNativeSendButton = (button) => {
-      if (!button || !composer.contains(button) || !button.querySelector?.("svg")) return false;
-      if (button.hasAttribute?.("data-composer-navigation-target") || button.getAttribute?.("aria-label")) return false;
-      return nativeSendButton(composer) === button;
-    };
     const onClickCapture = (event) => {
       const button = event.target?.closest?.("button");
-      if (!event.defaultPrevented && !button?.disabled && isNativeSendButton(button)) {
-        markPendingAssistantStream();
-        wrapCurrentMessage();
-      }
+      if (!event.defaultPrevented && isNativeSendButton(composer, button)) wrapCurrentMessage();
     };
     const onKeyDownCapture = (event) => {
       if (event.defaultPrevented || event.key !== "Enter" || event.shiftKey || event.ctrlKey || event.altKey || event.metaKey || event.isComposing) return;
-      markPendingAssistantStream();
       wrapCurrentMessage();
     };
     composer.addEventListener("click", onClickCapture, true);
@@ -1104,6 +1129,7 @@ ${PROSE_WRAPPER_END}
     if (config.mode === "codex-document") {
       root.classList.remove(...ROOT_CLASSES);
       ensureDocumentResponses();
+      ensureStreamTracking();
       ensureProseWrapper();
       ensureFeedbackBoard();
       return;
@@ -1187,9 +1213,13 @@ ${PROSE_WRAPPER_END}
     // Reapplication must cancel both listeners and any in-flight, temporary
     // composer substitution from the previous renderer instance.
     proseCleanup: () => proseCleanup?.(),
+    streamCleanup: () => streamCleanup?.(),
     feedbackCleanup: () => feedbackCleanup?.(),
     feedback: { classify: feedbackClassification, hash: feedbackHash },
-    stream: { snapshot: () => ({ pending: Boolean(pendingAssistantStream), node: Boolean(pendingAssistantStream?.node) }) },
+    stream: {
+      snapshot: () => ({ pending: Boolean(pendingAssistantStream), node: Boolean(pendingAssistantStream?.node) }),
+      sendButtonFrom: nativeSendButton,
+    },
     version: "1.5.0",
   };
   ensure();

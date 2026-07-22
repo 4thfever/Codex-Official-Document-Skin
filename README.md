@@ -3,7 +3,7 @@
 ---
 
 <div align="center">
-  <p><strong>让 Codex 向你呈递公文文书并接受你的批示圈阅。</strong></p>
+  <p><strong>Codex呈递公文并接受批示圈阅。</strong></p>
   <p>为 Codex 桌面端提供公文式回复、正式文风与圈阅反馈。</p>
   <p>本机 CDP 注入，不改官方安装包。非 OpenAI 官方产品。</p>
   <p>不修改 <code>.app</code>、<code>app.asar</code> 或 <code>WindowsApps</code>。</p>
@@ -33,7 +33,9 @@
 
 流式生成期间会保持落款区域稳定，完成后再补齐结束语、署名和日期。代码块、命令、表格等原有 Markdown 内容仍按其原格式呈现。
 
-![整体概览](./assets/response.png)
+<p align="center">
+  <img src="./assets/response.png" alt="整体概览" />
+</p>
 
 ### 2. 遣词酌句向正式公文文风靠拢
 
@@ -45,7 +47,9 @@
 
 该约束不改变用户提供的事实、立场、选材或任务，也不改写代码、命令、日志、表格、JSON 和用户指定的输出格式。
 
-![公文格式样例](./assets/response2.png)
+<p align="center">
+  <img src="./assets/response2.png" alt="公文格式样例" />
+</p>
 
 
 ### 3. 圈阅表达同意和不同意
@@ -58,10 +62,12 @@
 
 鼠标悬浮到圈阅区域时会显示画笔，按住鼠标拖动即可绘制圈或叉。
 
-![输入区左侧的圈阅区域](./assets/input_area.png)
+<p align="center">
+  <img src="./assets/input_area.png" alt="输入区左侧的圈阅区域" />
+</p>
 
 <div align="center">
-  <table>
+  <table align="center">
     <tr>
       <td align="center"><img src="./assets/answer-yes.png" alt="圈阅同意" width="180" /></td>
       <td align="center"><img src="./assets/answer-no.png" alt="圈阅不同意" width="180" /></td>
@@ -86,7 +92,7 @@
 
 - Windows 和 macOS 均提供 CODEX Document Mode；macOS 的自动化 fixture 已覆盖，
   但仍需要真实 Mac 上的官方 Codex Desktop 完成最终实机验收。
-- 参考：[Codex-Dream-Skin](https://github.com/Fei-Away/Codex-Dream-Skin/tree/main)。
+- 欢迎就公文的具体书写策略和文字提出建议
 
 ## 致谢
 
