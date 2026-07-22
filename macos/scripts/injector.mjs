@@ -11,7 +11,7 @@ const execFileAsync = promisify(execFile);
 const scriptPath = fileURLToPath(import.meta.url);
 const here = path.dirname(scriptPath);
 const root = path.resolve(here, "..");
-const SKIN_VERSION = "1.2.0";
+const SKIN_VERSION = "1.5.0";
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 const CDP_ID_PATTERN = /^[A-Za-z0-9._-]{1,200}$/;
 const MAX_ART_BYTES = 16 * 1024 * 1024;
@@ -445,7 +445,7 @@ async function loadTheme(themeDir) {
     throw error;
   }
   const raw = JSON.parse(config);
-  if (raw.schemaVersion !== 1 || typeof raw.image !== "string" || !raw.image) {
+  if (raw.schemaVersion !== 2 || raw.mode !== "codex-document" || typeof raw.image !== "string" || !raw.image) {
     throw new Error(`${configPath} has an unsupported schema or image field`);
   }
   if (/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u.test(raw.image)) {
@@ -480,12 +480,10 @@ async function loadTheme(themeDir) {
     }
     return value;
   };
-  const rawColors = raw.colors && typeof raw.colors === "object" && !Array.isArray(raw.colors)
-    ? raw.colors : null;
-  const colorKeys = [
-    "background", "panel", "panelAlt", "accent", "accentAlt", "secondary",
-    "highlight", "text", "muted", "line",
-  ];
+  const rawDocument = raw.document && typeof raw.document === "object" && !Array.isArray(raw.document)
+    ? raw.document : {};
+  const rawFeedback = raw.feedback && typeof raw.feedback === "object" && !Array.isArray(raw.feedback)
+    ? raw.feedback : {};
   const appearance = choice(raw.appearance, "appearance", ["auto", "light", "dark"]);
   if (raw.art !== undefined && (!raw.art || typeof raw.art !== "object" || Array.isArray(raw.art))) {
     throw new Error(`${configPath} has an invalid art field`);
@@ -498,35 +496,25 @@ async function loadTheme(themeDir) {
     taskMode: choice(rawArt.taskMode, "art.taskMode", ["auto", "ambient", "banner", "off"]),
   };
   const theme = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     id: text(raw.id, "custom", 80, "id"),
-    name: text(raw.name, "ChatGPT Dream Skin", 80, "name"),
-    brandSubtitle: text(raw.brandSubtitle, "CODEX DREAM SKIN", 80, "brandSubtitle"),
-    tagline: text(raw.tagline, "Make something wonderful.", 160, "tagline"),
-    projectPrefix: text(raw.projectPrefix, "选择项目 · ", 80, "projectPrefix"),
-    projectLabel: text(raw.projectLabel, "◉  选择项目", 80, "projectLabel"),
-    statusText: text(raw.statusText, "DREAM SKIN ONLINE", 80, "statusText"),
-    quote: text(raw.quote, "MAKE SOMETHING WONDERFUL", 80, "quote"),
+    name: text(raw.name, "CODEX Document", 80, "name"),
+    mode: "codex-document",
     image: raw.image,
-    colorMode: rawColors ? "explicit" : "auto",
-    explicitColorKeys: rawColors ? colorKeys.filter((key) => Object.hasOwn(rawColors, key)) : [],
-    colors: {
-      background: color(rawColors?.background, "#071116"),
-      panel: color(rawColors?.panel, "#0b1a20"),
-      panelAlt: color(rawColors?.panelAlt, "#10272c"),
-      accent: color(rawColors?.accent, "#7cff46"),
-      accentAlt: color(rawColors?.accentAlt, "#b8ff3d"),
-      secondary: color(rawColors?.secondary, "#36d7e8"),
-      highlight: color(rawColors?.highlight, "#642a8c"),
-      text: color(rawColors?.text, "#e9fff1"),
-      muted: color(rawColors?.muted, "#9ebdb3"),
-      line: color(rawColors?.line, "rgba(124, 255, 70, .28)"),
+    document: {
+      masthead: text(rawDocument.masthead, "美国科代克斯技术服务有限公司", 32, "document.masthead"),
+      greeting: text(rawDocument.greeting, "尊敬的董事长：", 80, "document.greeting"),
+      closing: text(rawDocument.closing, "此致", 32, "document.closing"),
+      signature: text(rawDocument.signature, "山姆·奥特曼", 80, "document.signature"),
+      accent: color(rawDocument.accent, "#8B1E1E"),
+      surface: color(rawDocument.surface, "#FCFBF7"),
+      text: color(rawDocument.text, "#24201D"),
+      border: color(rawDocument.border, "#D8D1C6"),
     },
+    feedback: { autoSend: rawFeedback.autoSend !== false },
   };
-  if (appearance !== undefined) theme.appearance = appearance;
-  if (Object.values(art).some((value) => value !== undefined)) {
-    theme.art = Object.fromEntries(Object.entries(art).filter(([, value]) => value !== undefined));
-  }
+  theme.appearance = appearance ?? "light";
+  theme.art = Object.fromEntries(Object.entries(art).filter(([, value]) => value !== undefined));
   const requestedImagePath = path.join(assetsRoot, theme.image);
   let imagePath;
   try {
@@ -576,13 +564,14 @@ async function loadStaticPayloadAssets() {
     staticPayloadAssets = Promise.all([
       fs.readFile(path.join(root, "assets", "dream-skin.css"), "utf8"),
       fs.readFile(path.join(root, "assets", "renderer-inject.js"), "utf8"),
+      fs.readFile(path.join(root, "assets", "prose-style-guide.md"), "utf8"),
     ]).catch((error) => {
       staticPayloadAssets = null;
       throw error;
     });
   }
-  const [css, template] = await staticPayloadAssets;
-  return { css, template, cacheHit };
+  const [css, template, proseGuide] = await staticPayloadAssets;
+  return { css, template, proseGuide, cacheHit };
 }
 
 function invalidateStaticPayloadAssets() {
@@ -595,7 +584,7 @@ async function loadPayload(themeDir) {
     loadStaticPayloadAssets(),
     loadTheme(themeDir),
   ]);
-  const { css, template } = staticAssets;
+  const { css, template, proseGuide } = staticAssets;
   const { art, extension, theme } = loaded;
   const styleRevision = createHash("sha256").update(css).digest("hex").slice(0, 20);
   const artMetadata = readImageMetadata(art, extension);
@@ -616,12 +605,10 @@ async function loadPayload(themeDir) {
     .digest("hex")
     .slice(0, 20);
   const payload = template
-    .replace("__DREAM_SKIN_CSS_JSON__", JSON.stringify(css))
-    .replace("__DREAM_SKIN_ART_JSON__", JSON.stringify(artDataUrl))
-    .replace("__DREAM_SKIN_THEME_JSON__", JSON.stringify(theme))
-    .replace("__DREAM_SKIN_VERSION_JSON__", JSON.stringify(SKIN_VERSION))
-    .replace("__DREAM_SKIN_STYLE_REVISION_JSON__", JSON.stringify(styleRevision))
-    .replace("__DREAM_SKIN_PAYLOAD_REVISION_JSON__", JSON.stringify(revision));
+    .replace("__DREAM_CSS_JSON__", JSON.stringify(css))
+    .replace("__DREAM_ART_JSON__", JSON.stringify(artDataUrl))
+    .replace("__DREAM_THEME_JSON__", JSON.stringify(theme))
+    .replace("__DREAM_PROSE_GUIDE__", JSON.stringify(proseGuide));
   return {
     imageBytes: art.length,
     payload,
@@ -806,6 +793,7 @@ async function removeFromSession(session) {
     const state = window.__CODEX_DREAM_SKIN_STATE__;
     if (state?.cleanup) return state.cleanup();
     document.documentElement?.classList.remove('codex-dream-skin');
+    document.documentElement?.classList.remove('codex-document-mode');
     document.documentElement?.style.removeProperty('--dream-skin-art');
     document.getElementById('codex-dream-skin-style')?.remove();
     document.getElementById('codex-dream-skin-chrome')?.remove();
@@ -817,6 +805,7 @@ async function removeFromSession(session) {
 async function verifyRemovedSession(session) {
   return session.evaluate(`(() =>
     !document.documentElement.classList.contains('codex-dream-skin') &&
+    !document.documentElement.classList.contains('codex-document-mode') &&
     !document.getElementById('codex-dream-skin-style') &&
     !document.getElementById('codex-dream-skin-chrome') &&
     !window.__CODEX_DREAM_SKIN_STATE__
@@ -835,6 +824,10 @@ async function verifySession(session, expectedThemeId = null, expectedRevision =
         visible: r.width > 0 && r.height > 0 && style.display !== 'none' && style.visibility !== 'hidden',
       };
     };
+    const documentMode = document.documentElement.classList.contains('codex-document-mode');
+    const documentResponses = [...document.querySelectorAll('.codex-document-response')];
+    const documentHeaders = [...document.querySelectorAll('.codex-document-response-header')];
+    const documentFooters = [...document.querySelectorAll('.codex-document-response-footer')];
     const homeIndicator = document.querySelector('[data-testid="home-icon"]');
     const homeSignal = homeIndicator ?? document.querySelector('[data-feature="game-source"]') ??
       document.querySelector('.group\\\\/home-suggestions');
@@ -867,6 +860,10 @@ async function verifySession(session, expectedThemeId = null, expectedRevision =
     const chrome = document.getElementById('codex-dream-skin-chrome');
     const result = {
       installed: document.documentElement.classList.contains('codex-dream-skin'),
+      documentMode,
+      documentResponses: documentResponses.length,
+      documentHeaders: documentHeaders.length,
+      documentFooters: documentFooters.length,
       version: window.__CODEX_DREAM_SKIN_STATE__?.version ?? null,
       themeId: window.__CODEX_DREAM_SKIN_STATE__?.themeId ?? null,
       revision: window.__CODEX_DREAM_SKIN_STATE__?.revision ?? null,
@@ -890,15 +887,18 @@ async function verifySession(session, expectedThemeId = null, expectedRevision =
         y: document.documentElement.scrollHeight > document.documentElement.clientHeight,
       },
     };
-    const basePass = result.installed && result.version === ${JSON.stringify(SKIN_VERSION)} &&
-      result.stylePresent && result.chromePresent && result.chromePointerEvents === 'none' &&
+    const documentPass = result.documentMode && result.stylePresent &&
+      result.documentHeaders === result.documentResponses && result.documentFooters === result.documentResponses;
+    const dreamPass = result.installed && result.stylePresent && result.chromePresent &&
+      result.chromePointerEvents === 'none';
+    const basePass = (documentPass || dreamPass) && result.version === ${JSON.stringify(SKIN_VERSION)} &&
       Boolean(result.shell?.visible) && Boolean(result.sidebar?.visible) && !result.documentOverflow.x;
     const expectedThemeId = ${JSON.stringify(expectedThemeId)};
     const expectedRevision = ${JSON.stringify(expectedRevision)};
     const payloadPass = (!expectedThemeId || result.themeId === expectedThemeId) &&
       (!expectedRevision || result.revision === expectedRevision);
     // Project selector markup varies across Codex builds — soft requirement.
-    const homePass = !result.homeRoute || (
+    const homePass = documentMode || !result.homeRoute || (
       result.homePresent && result.hero?.visible && result.hero.width >= 280 &&
       result.hero.height >= 120 && (result.visibleCardCount === 0 || (
         visibleSuggestionLabels.length >= result.visibleCardCount &&
@@ -1144,7 +1144,7 @@ function watchPayloadSources(themeDir, onDirty) {
       watcher = watchFs(directory, { persistent: false }, (_event, filename) => {
         const name = filename ? String(filename) : "";
         const staticChanged = directory === assetsRoot &&
-          (!name || name === "dream-skin.css" || name === "renderer-inject.js");
+          (!name || name === "dream-skin.css" || name === "renderer-inject.js" || name === "prose-style-guide.md");
         if (kind === "static" && !staticChanged) return;
         onDirty({ staticChanged });
       });

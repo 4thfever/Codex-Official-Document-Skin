@@ -3,7 +3,7 @@
   "id": "preset-codex-document",
   "name": "CODEX Document",
   "mode": "codex-document",
-  "image": "dream-reference.jpg",
+  "image": "background.jpg",
   "appearance": "light",
   "art": {
     "focusX": 0.5,
@@ -20,6 +20,9 @@
     "surface": "#FCFBF7",
     "text": "#24201D",
     "border": "#D8D1C6"
+  },
+  "prose": {
+    "enabled": true
   },
   "feedback": {
     "autoSend": true

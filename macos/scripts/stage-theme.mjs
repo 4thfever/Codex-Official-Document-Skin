@@ -81,7 +81,8 @@ async function main() {
   const configPath = path.join(sourceRoot, "theme.json");
   const config = await readStableFile(configPath, "Theme config", MAX_CONFIG_BYTES);
   const theme = decodeJson(config.bytes, "Theme config");
-  if (theme?.schemaVersion !== 1 || typeof theme.image !== "string" || !theme.image) {
+  if (theme?.schemaVersion !== 2 || theme?.mode !== "codex-document" ||
+    typeof theme.image !== "string" || !theme.image) {
     throw new Error("Theme config has an unsupported schema or image field");
   }
   if (path.basename(theme.image) !== theme.image) {
