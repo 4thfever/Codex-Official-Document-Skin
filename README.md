@@ -6,6 +6,8 @@
   <p><strong>让 Codex 向你呈递公文文书并接受你的批示圈阅。</strong></p>
   <p>为 Codex 桌面端提供公文式回复、正式文风与圈阅反馈。</p>
   <p>本机 CDP 注入，不改官方安装包。非 OpenAI 官方产品。</p>
+  <p>不修改 <code>.app</code>、<code>app.asar</code> 或 <code>WindowsApps</code>。</p>
+
 </div>
 
 > [!IMPORTANT]
