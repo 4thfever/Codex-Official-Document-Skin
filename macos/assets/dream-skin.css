@@ -202,9 +202,12 @@ html.codex-document-mode #codex-document-feedback-board {
   width: 106px;
   height: 106px;
   padding: 3px;
-  border: 2px solid #149ee8;
+  border: 1px solid color-mix(in srgb, var(--codex-document-accent, #8b1e1e) 72%, #5b201d);
   border-radius: 0;
-  background: var(--codex-document-surface, #fcfbf7);
+  background: color-mix(in srgb, var(--codex-document-surface, #fcfbf7) 97%, var(--codex-document-accent, #8b1e1e));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--codex-document-border, #d8d1c6) 78%, transparent),
+    0 2px 8px rgb(36 32 29 / 12%);
 }
 
 html.codex-document-mode #codex-document-feedback-board .codex-document-feedback-canvas {

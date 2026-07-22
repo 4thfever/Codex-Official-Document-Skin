@@ -44,6 +44,9 @@
   const FEEDBACK_STATUS_CLASS = "codex-document-feedback-status";
   const FEEDBACK_AGREE = "【反馈：同意】";
   const FEEDBACK_DISAGREE = "【反馈：不同意】";
+  const FEEDBACK_UNKNOWN = "【反馈：无法判断】";
+  const FEEDBACK_SETTLE_MS = 380;
+  const FEEDBACK_DEADLINE_MS = 1500;
   const PROSE_WRAPPER_START = "[CODEX_DOCUMENT_PROSE_WRAPPER_START]";
   const PROSE_WRAPPER_END = "[CODEX_DOCUMENT_PROSE_WRAPPER_END]";
   const PROSE_USER_REQUEST_MARKER = "用户原始请求如下：";
@@ -680,10 +683,23 @@ ${PROSE_WRAPPER_END}
     document.body?.appendChild?.(board);
     if (!board.parentElement) return;
 
-    const state = { strokes: [], current: null, pointerId: null, wasEmpty: false, timer: null, sent: new Set(), settled: false, disposed: false };
+    // Hide instead of using a zero-sized/transitioning composer rect. That rect
+    // was the source of the intermittent (8px, 8px) board in the upper left.
+    board.hidden = true;
+    const state = { strokes: [], current: null, pointerId: null, wasEmpty: false, timer: null, deadline: null, sent: new Set(), settled: false, disposed: false };
     const positionBoard = () => {
       const rect = composer.getBoundingClientRect?.();
-      if (!rect) return;
+      const viewportWidth = window.innerWidth || document.documentElement?.clientWidth || 0;
+      const viewportHeight = window.innerHeight || document.documentElement?.clientHeight || 0;
+      const valid = composer.isConnected !== false && rect &&
+        [rect.left, rect.top, rect.right, rect.bottom, rect.width, rect.height].every(Number.isFinite) &&
+        rect.width > 0 && rect.height > 0 && rect.right > 0 && rect.bottom > 0 &&
+        (!viewportWidth || rect.left < viewportWidth) && (!viewportHeight || rect.top < viewportHeight);
+      if (!valid) {
+        board.hidden = true;
+        return;
+      }
+      board.hidden = false;
       board.style.left = `${Math.max(8, Math.round(rect.left - 116))}px`;
       board.style.top = `${Math.max(8, Math.round(rect.top))}px`;
     };
@@ -711,6 +727,10 @@ ${PROSE_WRAPPER_END}
       }
     };
     const reset = () => {
+      if (state.timer) clearTimeout(state.timer);
+      if (state.deadline) clearTimeout(state.deadline);
+      state.timer = null;
+      state.deadline = null;
       state.strokes = [];
       state.current = null;
       state.sent.clear();
@@ -721,25 +741,34 @@ ${PROSE_WRAPPER_END}
     const appendAndMaybeSend = () => {
       if (state.disposed || !state.strokes.length) return;
       state.settled = true;
+      if (state.timer) clearTimeout(state.timer);
+      if (state.deadline) clearTimeout(state.deadline);
+      state.timer = null;
+      state.deadline = null;
       const hash = feedbackHash(state.strokes);
-      if (!hash || state.sent.has(hash)) return;
-      const result = feedbackClassification(state.strokes);
-      const feedback = result.kind === "agree" ? FEEDBACK_AGREE : result.kind === "disagree" ? FEEDBACK_DISAGREE : "";
-      if (!feedback) {
-        status.textContent = "未识别";
+      if (!hash || state.sent.has(hash)) {
+        reset();
         return;
       }
+      let result;
+      try {
+        result = feedbackClassification(state.strokes);
+      } catch {
+        result = { kind: "unknown" };
+      }
+      const feedback = result.kind === "agree" ? FEEDBACK_AGREE : result.kind === "disagree" ? FEEDBACK_DISAGREE : FEEDBACK_UNKNOWN;
       const currentText = composerText(editable);
-      const canAutoSend = state.wasEmpty && !currentText.trim() && config.feedback.autoSend;
+      const canAutoSend = result.kind !== "unknown" && state.wasEmpty && !currentText.trim() && config.feedback.autoSend;
       const appended = currentText ? `${currentText}${currentText.endsWith("\n") ? "" : "\n"}${feedback}` : feedback;
       if (!setComposerText(editable, appended)) {
         status.textContent = "写入失败";
+        reset();
         return;
       }
       state.sent.add(hash);
-      status.textContent = result.kind === "agree" ? "同意" : "不同意";
-      // The mark has been consumed. Keep only the composer text; an
-      // unrecognized mark remains visible so the user can redraw it.
+      status.textContent = result.kind === "agree" ? "同意" : result.kind === "disagree" ? "不同意" : "无法判断";
+      // Every result consumes the mark. Unknown strokes become editable text
+      // rather than leaving a stale drawing on screen.
       state.strokes = [];
       state.current = null;
       redraw();
@@ -760,7 +789,12 @@ ${PROSE_WRAPPER_END}
       state.timer = setTimeout(() => {
         state.timer = null;
         appendAndMaybeSend();
-      }, 380);
+      }, FEEDBACK_SETTLE_MS);
+      if (state.deadline) clearTimeout(state.deadline);
+      state.deadline = setTimeout(() => {
+        state.deadline = null;
+        appendAndMaybeSend();
+      }, FEEDBACK_DEADLINE_MS);
     };
     const pointFrom = (event) => {
       const rect = canvas.getBoundingClientRect?.() || { left: 0, top: 0, width: 48, height: 48 };
@@ -771,6 +805,7 @@ ${PROSE_WRAPPER_END}
     };
     const onPointerDown = (event) => {
       if (state.timer) { clearTimeout(state.timer); state.timer = null; }
+      if (state.deadline) { clearTimeout(state.deadline); state.deadline = null; }
       if (state.settled) reset();
       state.wasEmpty = !composerText(editable).trim();
       state.pointerId = event.pointerId;
@@ -799,17 +834,26 @@ ${PROSE_WRAPPER_END}
     canvas.addEventListener("pointercancel", onPointerEnd);
     const resizeObserver = typeof ResizeObserver === "function" ? new ResizeObserver(positionBoard) : null;
     window.addEventListener?.("resize", positionBoard);
+    window.addEventListener?.("scroll", positionBoard, true);
+    window.visualViewport?.addEventListener?.("resize", positionBoard);
+    window.visualViewport?.addEventListener?.("scroll", positionBoard);
     resizeObserver?.observe?.(composer);
     positionBoard();
+    const requestFrame = window.requestAnimationFrame?.bind(window) || ((callback) => setTimeout(callback, 0));
+    requestFrame(() => { if (!state.disposed) positionBoard(); });
     redraw();
     feedbackCleanup = () => {
       state.disposed = true;
       if (state.timer) clearTimeout(state.timer);
+      if (state.deadline) clearTimeout(state.deadline);
       canvas.removeEventListener?.("pointerdown", onPointerDown);
       canvas.removeEventListener?.("pointermove", onPointerMove);
       canvas.removeEventListener?.("pointerup", onPointerEnd);
       canvas.removeEventListener?.("pointercancel", onPointerEnd);
       window.removeEventListener?.("resize", positionBoard);
+      window.removeEventListener?.("scroll", positionBoard, true);
+      window.visualViewport?.removeEventListener?.("resize", positionBoard);
+      window.visualViewport?.removeEventListener?.("scroll", positionBoard);
       resizeObserver?.disconnect?.();
       board.remove?.();
       feedbackTarget = null;
