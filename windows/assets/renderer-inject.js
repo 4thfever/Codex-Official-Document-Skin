@@ -427,14 +427,12 @@ ${PROSE_WRAPPER_END}
     return firstRatio > .04 && firstRatio < .96 && secondRatio > .04 && secondRatio < .96;
   };
 
-  const circleScore = (strokes) => {
-    if (strokes.length !== 1) return 0;
-    const points = strokes[0];
+  const circleScoreForPoints = (points) => {
     if (points.length < 12) return 0;
     const first = points[0];
     const last = points.at(-1);
     const closure = pointDistance(first, last);
-    if (closure > .34) return 0;
+    if (closure > .52) return 0;
     const center = points.reduce((sum, point) => ({ x: sum.x + point.x, y: sum.y + point.y }), { x: 0, y: 0 });
     center.x /= points.length;
     center.y /= points.length;
@@ -476,12 +474,32 @@ ${PROSE_WRAPPER_END}
         if (segmentIntersection(points[index], points[index + 1], points[other], points[other + 1])) intersections += 1;
       }
     }
-    const closureScore = clamp01(1 - closure / .34);
-    const coverageScore = clamp01((bins.size - 9) / 6);
-    const windingScore = clamp01(1 - Math.abs(Math.abs(winding) / (2 * Math.PI) - 1) / .42);
-    const radiusScore = clamp01(1 - radiusDeviation / .42);
-    const intersectionScore = intersections ? 0 : 1;
+    const closureScore = clamp01(1 - closure / .52);
+    const coverageScore = clamp01((bins.size - 8) / 7);
+    const windingScore = clamp01(1 - Math.abs(Math.abs(winding) / (2 * Math.PI) - 1) / .65);
+    const radiusScore = clamp01(1 - radiusDeviation / .62);
+    // Hand-drawn circles often touch or slightly overlap at their endpoint.
+    // Reject repeated crossings, but do not reject a single close-out wobble.
+    const intersectionScore = intersections <= 1 ? 1 : clamp01(1 - (intersections - 1) / 3);
     return Math.min(closureScore, coverageScore, windingScore, radiusScore, intersectionScore);
+  };
+  const circleScore = (strokes) => {
+    if (strokes.length !== 1) return 0;
+    const points = strokes[0];
+    // Treat a small lead-in or tail as a pen artifact. Evaluate the full
+    // stroke and trimmed variants, but never invent a loop from an open arc.
+    const trimLimit = Math.floor(points.length * .26);
+    const trimStep = Math.max(2, Math.floor(points.length / 18));
+    let best = circleScoreForPoints(points);
+    for (let start = 0; start <= trimLimit; start += trimStep) {
+      for (let end = 0; end <= trimLimit; end += trimStep) {
+        if (!start && !end) continue;
+        const candidate = points.slice(start, points.length - end);
+        if (candidate.length < 12) continue;
+        best = Math.max(best, circleScoreForPoints(candidate));
+      }
+    }
+    return best;
   };
 
   const lineFrom = (first, second) => {
@@ -569,10 +587,8 @@ ${PROSE_WRAPPER_END}
     const strokes = normalizedStrokes(rawStrokes);
     const circle = circleScore(strokes);
     const cross = xScore(strokes);
-    const threshold = .72;
-    const margin = .14;
-    if (circle >= threshold && circle - cross >= margin) return { kind: "agree", score: circle, circle, cross };
-    if (cross >= threshold && cross - circle >= margin) return { kind: "disagree", score: cross, circle, cross };
+    if (circle >= .5 && circle - cross >= .1) return { kind: "agree", score: circle, circle, cross };
+    if (cross >= .72 && cross - circle >= .14) return { kind: "disagree", score: cross, circle, cross };
     return { kind: "unknown", score: Math.max(circle, cross), circle, cross };
   };
   const feedbackHash = (strokes) => JSON.stringify(normalizedStrokes(strokes).map((stroke) =>
@@ -711,6 +727,11 @@ ${PROSE_WRAPPER_END}
       }
       state.sent.add(hash);
       status.textContent = result.kind === "agree" ? "同意" : "不同意";
+      // The mark has been consumed. Keep only the composer text; an
+      // unrecognized mark remains visible so the user can redraw it.
+      state.strokes = [];
+      state.current = null;
+      redraw();
       if (!canAutoSend) return;
       const sendWhenReady = (attempt = 0) => {
         if (state.disposed || composerText(editable).trim() !== feedback) return;

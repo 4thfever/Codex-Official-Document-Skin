@@ -469,6 +469,24 @@ const circle = Array.from({ length: 49 }, (_, index) => {
   return { x: .5 + .33 * Math.cos(angle), y: .5 + .24 * Math.sin(angle) };
 });
 assert.equal(feedback.classify([circle]).kind, "agree", "Elliptical closed strokes must map to agreement.");
+const roughOpenCircle = Array.from({ length: 43 }, (_, index) => {
+  const angle = index * 2 * Math.PI / 48;
+  const wobble = index % 5 === 0 ? .025 : 0;
+  return { x: .5 + (.31 + wobble) * Math.cos(angle), y: .5 + (.24 - wobble / 2) * Math.sin(angle) };
+});
+const roughCircleClassification = feedback.classify([roughOpenCircle]);
+assert.equal(roughCircleClassification.kind, "agree",
+  `A hand-drawn circle may leave a small closing gap or endpoint wobble: ${JSON.stringify(roughCircleClassification)}`);
+const tailedCircle = [
+  ...line({ x: .72, y: .18 }, { x: .5, y: .26 }, 5),
+  ...Array.from({ length: 49 }, (_, index) => {
+    const angle = -Math.PI / 2 + index * 2 * Math.PI / 48;
+    return { x: .5 + .28 * Math.cos(angle), y: .5 + .25 * Math.sin(angle) };
+  }).slice(1),
+  ...line({ x: .5, y: .25 }, { x: .7, y: .16 }, 5).slice(1),
+];
+assert.equal(feedback.classify([tailedCircle]).kind, "agree",
+  "A circle with a short lead-in or closing tail must map to agreement.");
 assert.equal(feedback.classify([
   line({ x: .16, y: .14 }, { x: .84, y: .86 }),
   line({ x: .84, y: .14 }, { x: .16, y: .86 }),
