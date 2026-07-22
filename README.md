@@ -1,53 +1,42 @@
-# Codex 正式文风与文档模式
+# Codex 公文皮肤
 
-为官方 Codex Desktop 提供两项相互独立的能力：
+[![Platform](https://img.shields.io/badge/platform-Windows-0078D4?logo=windows&logoColor=white)](./windows/README.md)
+[![Status](https://img.shields.io/badge/status-experimental-8B1E1E)](./docs/codex-document-mode-spec.md)
 
-- **正式文风**：将回复组织为准确、简明、克制的中文书面表达；代码、命令、日志、表格和用户指定格式保持原样。
-- **文档模式（Windows）**：通过本机回环 CDP 将助手回复呈现为纸面化文档，并在发送时临时注入文风引导；不修改 Codex 安装文件、`app.asar`、签名、API Key 或 Base URL。
+> [!IMPORTANT]
+> 该工具仅供娱乐与学习交流之用，请在合理、合法的范围内使用。<br>
+> 该工具本身无法在不修改代码的前提下伪造真实文件或在机构签发的文件。<br>
+> 因对该工具的不合理使用而产生的任何直接或间接责任、损失或纠纷，使用者自行承担。<br>
+> 他人对该仓库代码作出的任何改动、由此产生的风险或后果均与该仓库所有者无关。
 
-本项目为非官方工具，与 OpenAI 无关。
+将 Codex 的回复呈现为克制、正式的公文风格。本项目为非官方工具，与 OpenAI 无关。
 
-## 使用正式文风
+## 功能介绍
 
-仓库内置 Codex Skill：[`skills/codex-official-prose-style`](./skills/codex-official-prose-style/)。在支持项目 Skill 的 Codex 会话中，可直接提出类似请求：
+### 1. 回复变成公文格式
 
-```text
-使用 $codex-official-prose-style，将下面内容整理为正式、简洁的情况说明：
-……
-```
+助手回复会以题头、标题、称谓、正文和落款的形式呈现，让内容更接近正式文档的阅读体验。
 
-文风只是一种写作辅助：不虚构事实、依据、身份或权限；不生成红头、文号、印章、签发等法定公文要素，也不使回复具有任何官方或法律效力。完整规则见[正式文风指南](./docs/codex-official-prose-style-guide.md)。
+![公文格式回复示例](./assets/response.png)
 
-## 启用 Windows 文档模式
+### 2. 遣词酌句向正式公文文风靠拢
 
-前提：已从 Microsoft Store 安装官方 `OpenAI.Codex`，并已安装 Node.js 22+。关闭 Codex 后，在 PowerShell 中运行：
+回复会尽量采用准确、简明、克制的书面表达，按事项组织层次；代码、命令、表格等内容仍保持原有格式。文风只用于辅助表达，不虚构事实、身份、依据或文件效力。
 
-```powershell
-cd .\windows
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-dream-skin.ps1
-```
+### 3. 圈阅表达同意和不同意
 
-安装完成后，通过桌面上的 `Codex Dream Skin` 启动 Codex。首次安装会初始化 `CODEX Document` 预设；该模式只装饰助手消息，原生侧栏、项目、输入框、代码块和复制操作仍保持可用。
+可在输入区圈阅：画圈表示同意，画叉表示不同意。识别结果会以可编辑文字写入当前输入框。
 
-恢复官方外观：
+<div align="center">
+  <img src="./assets/answer-yes.png" alt="圈阅同意" width="180" />
+  <img src="./assets/answer-no.png" alt="圈阅不同意" width="180" />
+</div>
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\restore-dream-skin.ps1 -RestoreBaseTheme -PromptRestart
-```
+## 备注
 
-Windows 的安装、更新、验证、主题切换和排障见 [windows/README.md](./windows/README.md)。文档模式的功能边界和验收标准见 [规格说明](./docs/codex-document-mode-spec.md)。
-
-## 平台与安全
-
-| 内容 | 入口 |
-| --- | --- |
-| Windows 文档模式与主题工具 | [windows/README.md](./windows/README.md) |
-| macOS 主题工具 | [macos/README.md](./macos/README.md) |
-| 平台能力与本地路径 | [docs/platforms.md](./docs/platforms.md) |
-
-- CDP 仅监听本机回环地址；开启期间请勿运行不受信任的本机程序。
-- 本项目不代理请求，不写入 API Key、认证信息或模型供应商配置。
-- 不要提交 `.codex/auth.json`、密钥、日志中的敏感信息或私人对话内容。
+- 当前主要面向 Windows；macOS 版本未经测试，欢迎贡献代码。
+- 具体安装和使用说明见 [Windows 文档](./windows/README.md)。
+- 参考：[Codex-Dream-Skin](https://github.com/Fei-Away/Codex-Dream-Skin/tree/main)。
 
 ## 致谢
 
