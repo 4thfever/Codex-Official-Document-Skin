@@ -146,4 +146,4 @@ jobs:
           NODE: ${{ steps.node.outputs.path }}
           CODEX_DREAM_SKIN_SKIP_SIGNED_RUNTIME_TESTS: "1"
           CODEX_DREAM_SKIN_SKIP_DOCTOR: "1"
-        run: ./macos/tests/run-tests.sh
+        run: bash ./macos/tests/run-tests.sh

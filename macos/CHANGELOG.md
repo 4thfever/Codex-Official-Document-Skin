@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+## 1.5.0 — 2026-07-22
+
+### Breaking changes
+
+- macOS 已与 Windows 对齐为 **CODEX Document Mode**。默认和唯一受支持的活动预设为
+  `preset-codex-document`；旧壁纸主题文件会保留在主题库中，但不再自动激活或作为
+  可运行模式维护。
+
+### Added
+
+- 助手回复文档壳、结构化 `codex_document.title` 标题、流式落款控制、临时正式文风
+  wrapper，以及与 Windows 相同的红圈/红叉 composer 反馈板。
+- macOS payload 现在携带与 Windows 逐字一致的正式文风指南，并在 CSS、renderer、
+  主题 schema 和反馈识别上共用同一实现。
+
+### Changed
+
+- 菜单栏和桌面入口改为应用、暂停、继续、验证和恢复 Document Mode，不再提供已废弃
+  的换图、壁纸图库或壁纸主题切换入口。
+- 实机验证现在接受 document mode 无旧 wallpaper chrome 的状态，并检查文档壳、原生
+  sidebar、composer 与横向��出。
+
 ### 改进
 
 - 菜单栏在 `paused` 状态显示「继续显示皮肤」（调用现有应用入口），与 Windows 托盘暂停/继续文案和语义对齐；运行中仍为「重新应用皮肤」+「暂停皮肤」。

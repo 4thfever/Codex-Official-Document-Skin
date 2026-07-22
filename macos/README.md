@@ -1,209 +1,82 @@
-# Codex Dream Skin Studio
+# CODEX Document Mode for macOS
 
-Unofficial macOS theme studio for the **official Codex Desktop** app.
+这是官方 Codex Desktop 的非官方本地呈现工具。它通过仅绑定
+`127.0.0.1` 的 Chromium DevTools Protocol（CDP）把助手回复呈现为克制的
+文档式版面，并提供正式文风包装和输入区圈阅反馈。
 
-Turn an image you like into one continuous full-window Codex theme. The same wallpaper runs beneath the native sidebar and main surface, while route-aware translucency keeps home, task, plugin, scheduled-task, and pull-request controls fully interactive and readable.
+它不会修改官方 `.app`、`app.asar` 或代码签名，也不会改写 API Key、Base
+URL、网络请求或既有会话。
 
-This project injects through **local loopback CDP**. It does **not** modify the official `.app`, `app.asar`, or code signature.
+## 需要条件
 
-> Not affiliated with OpenAI. Codex is a trademark of its respective owners.
+- macOS，已安装并至少启动一次官方 Codex Desktop（bundle id
+  `com.openai.codex`）。
+- 不需要全局 Node.js。安装器会校验并使用官方应用内置的已签名 Node。
+- 安装与恢复期间请关闭 Codex；首次以 CDP 启动已打开的 Codex 时会请求确认。
 
-## Requirements
+## 安装与使用
 
-- macOS
-- Official Codex Desktop installed and launched at least once (`~/.codex/config.toml` exists)
-- No global Node.js install required (uses Codex’s signed bundled Node after validation)
-
-## Quick start (from this repo)
+从完整项目目录执行：
 
 ```bash
-# 1) Install to the stable path and create Desktop launchers
 ./scripts/install-dream-skin-macos.sh --no-launch
-
-# 2) Switch to the tested featured preset, or import your own pure background
-~/.codex/codex-dream-skin-studio/scripts/switch-theme-macos.sh --id preset-arina-hashimoto
-# ~/.codex/codex-dream-skin-studio/scripts/customize-theme-macos.sh
-
-# 3) Start/re-apply, verify, or restore via Desktop:
-#    Codex Dream Skin.command
-#    Codex Dream Skin - Customize.command
-#    Codex Dream Skin - Verify.command
-#    Codex Dream Skin - Restore.command
-
-# 4) Optional: menu bar (SwiftBar) — apply, pause, import, and switch
-./Install\ Menu\ Bar.command
-# Look for 🎨 Skin in the top-right menu bar
 ```
 
-Install location after step 2:
+安装器复制受管运行时到 `~/.codex/codex-dream-skin-studio`，并创建桌面入口：
 
-| Item | Path |
-| --- | --- |
-| Engine | `~/.codex/codex-dream-skin-studio` |
-| State / logs / user images | `~/Library/Application Support/CodexDreamSkinStudio` |
-| Theme backup | under Application Support (`theme-backup.json`) |
+- `Codex Dream Skin.command`：启动或重新应用 CODEX Document Mode。
+- `Codex Dream Skin - Verify.command`：检查当前 CDP 会话和注入状态，并保存截图。
+- `Codex Dream Skin - Restore.command`：移除注入并恢复官方外观。
 
-## Customer ZIP (optional packaging)
+首次安装会激活唯一受支持的 `preset-codex-document`。主题包含题头、称谓、
+结束语、署名、纸面和印章红等显示配置；默认值见
+[`assets/theme.json`](./assets/theme.json)。
 
-To build the “double-click install” folder layout for non-git users:
+## 文档模式行为
+
+- 仅将助手消息呈现为题头、标题、称谓、正文和落款；用户消息和原生导航、
+  项目选择、任务、代码块、输入框仍由官方应用负责。
+- 当前会话中，原生发送动作会临时附带正式文风规则，并要求模型先返回唯一的
+  `codex_document.title` JSON 元数据。原始输入在发送后立即恢复，不会写入
+  `config.toml` 或修改网络请求。
+- Composer 工具区旁有一个独立红圈/红叉画板。高置信圈追加 `【反馈：同意】`，
+  高置信叉追加 `【反馈：不同意】`；低置信笔画不修改草稿。只有草稿原本为空、
+  反馈已写入且原生发送按钮可用时，才会通过该原生按钮自动发送一次。
+- 暂停、恢复、页面重载或退出时都会移除画板、发送监听和临时 wrapper。
+
+完整边界和验收条件见
+[`../docs/codex-document-mode-spec.md`](../docs/codex-document-mode-spec.md)。
+
+## 验证与恢复
+
+命令行验证：
 
 ```bash
-./scripts/build-client-release.sh "$HOME/Desktop/Codex 主题编辑器.zip"
+~/.codex/codex-dream-skin-studio/scripts/verify-dream-skin-macos.sh \
+  --screenshot "$HOME/Desktop/Codex Document Verification.png"
 ```
 
-That ZIP contains a visible installer plus a hidden `.codex-dream-skin-studio` engine. Do not ship only CSS/images.
+验证会检查官方应用身份、loopback CDP、样式注入、原生侧栏/输入框、文档壳和
+横向溢出。验证不发送键盘、鼠标或网络请求。
 
-## How it works (security boundary)
-
-1. Discover `com.openai.codex` and validate signature / Team ID / arch / bundled Node.
-2. Start Codex via user `launchd` with CDP bound to `127.0.0.1` only.
-3. Accept the debug port only when it belongs to Codex (or a legitimate child).
-4. Inject only into expected `app://` renderer targets.
-5. Resolve the selected theme and image to real paths, then enforce 16 MB,
-   `16384px`-per-side, and 50-megapixel limits before injection.
-6. Keep a small injector alive across reloads and route changes.
-7. Pause/Restore stops the injector only when PID, executable, script path, and
-   start time match the recorded job; a stop failure preserves state and aborts.
-8. Config backup/restore requires Codex to be closed, strict UTF-8, an operation
-   lock, same-directory atomic replacement, and an unchanged-byte check.
-
-CDP is powerful and unauthenticated on loopback. Prefer Restore when you are done theming.
-
-## Bundled presets
-
-A fresh install seeds two tested presets into your theme library:
-**Gothic Void Crusade** and **桥本有菜 / Arina Hashimoto**. Gothic Void Crusade
-is the default when no active theme exists. Switch to Arina Hashimoto with:
+恢复官方外观：
 
 ```bash
-~/.codex/codex-dream-skin-studio/scripts/switch-theme-macos.sh --id preset-arina-hashimoto
+~/.codex/codex-dream-skin-studio/scripts/restore-dream-skin-macos.sh \
+  --restore-base-theme --restart-codex
 ```
 
-The user-provided source PNG is `1672 × 941`. Its pack contains a standardized
-derived `2560 × 1440` JPEG plus theme metadata; the derived export does not add
-source detail. The byte-identical source PNG is archived at
-[`docs/images/presets/arina-hashimoto-source.png`](../docs/images/presets/arina-hashimoto-source.png).
-The [light](../docs/images/presets/arina-hashimoto-light.jpg) and
-[dark](../docs/images/presets/arina-hashimoto-dark.jpg) images are real injected
-Codex screenshots for preview only — never import either screenshot as a
-background. The artwork is a user-provided AI-generated example, not an
-official OpenAI/Codex visual or endorsement; confirm likeness and asset rights
-before redistributing it.
+## 安全边界
 
-Seeding is idempotent. Upgrades remove only retired bundled preset IDs; your
-own `custom-*` themes from “换一张图” and the currently active theme copy are
-never touched.
+1. CDP 仅在 `127.0.0.1` 监听；其本身没有同用户认证，不用时请 Restore。
+2. 注入器只连接已校验的 `app://` Codex renderer，并验证官方应用、内置 Node、
+   PID、可执行路径和启动时间。
+3. pause/restore 只会结束记录中身份完全匹配的 watcher；无法证明归属时会停止并
+   保留状态，不会误杀未知进程。
+4. `config.toml` 仅在明确的安装/恢复流程内以严格 UTF-8、锁和原子替换处理。
 
-To contribute a preset, see [`presets/README.md`](./presets/README.md).
+## ��移说明
 
-## Image guidelines
-
-- PNG / JPEG / HEIC / TIFF / WebP (macOS readable)
-- Source ≤ 50 MB; prepared file ≤ 16 MB, ≤ 16384 px per side, and ≤ 50 MP
-- `2560 × 1440` (16:9) is the recommended master size; width ≥ 2000 px minimum
-- Keep roughly the left 50%–58% calm and low-contrast for native home content;
-  place the subject in the right 58%–88% without touching the edge
-- Use pure edge-to-edge background art only: no window chrome, sidebar, cards,
-  buttons, composer, readable text, logo, or watermark
-- The prompt-ready composition template and negative prompt live in
-  [`docs/reference-background-prompt-guide.md`](../docs/reference-background-prompt-guide.md)
-
-## Adaptive image themes
-
-The renderer treats every image as a theme input instead of assuming a fixed
-character palette. It downsamples the image in a local Canvas to estimate
-brightness, accent color, visual focus, left/right safe area, and aspect ratio.
-The pixels stay in the Codex renderer; there is no upload or external API call.
-If Canvas analysis is unavailable, the theme falls back to a safe default and
-the detected Codex shell/OS appearance.
-
-Theme metadata is optional. The defaults are deliberately adaptive:
-
-```json
-{
-  "appearance": "auto",
-  "art": {
-    "focusX": 0.72,
-    "focusY": 0.45,
-    "safeArea": "auto",
-    "taskMode": "auto"
-  }
-}
-```
-
-- `appearance`: `auto`, `light`, or `dark`. `auto` follows the native
-  Codex/ChatGPT or OS appearance; an explicit value wins. Image luminance
-  still informs palette and composition, but never overrides the user's UI mode.
-- `art.focusX` / `art.focusY`: normalized `0..1` coordinates used for
-  `background-position` (left/top is `0`, right/bottom is `1`).
-- `art.safeArea`: `auto`, `left`, `right`, `center`, or `none`. Automatic mode
-  finds the lower-information side so native home content does not cover the
-  subject. Use `none` when the artwork should fill the composition evenly.
-- `art.taskMode`: `auto`, `ambient`, `banner`, or `off`. Ultra-wide art
-  automatically uses a full-width task banner with a vertical fade; standard
-  art uses a quieter ambient layer. `off` removes the task-page artwork while
-  leaving the rest of the theme active.
-
-The image-derived palette is used unless a theme explicitly supplies color
-fields. Explicit art metadata (`focusX`, `focusY`, `safeArea`, `taskMode`) has
-the same priority over automatic inference. The home route remains expressive;
-task routes keep native content, cards, composer, and code readable above the
-image layer.
-
-CLI example:
-
-```bash
-~/.codex/codex-dream-skin-studio/scripts/customize-theme-macos.sh \
-  --image "/path/to/image.png" \
-  --name "My theme" \
-  --accent "#7cff46" \
-  --secondary "#36d7e8" \
-  --highlight "#642a8c"
-```
-
-To tune composition without changing the image, pass the adaptive fields to
-the image loader:
-
-```bash
-~/.codex/codex-dream-skin-studio/scripts/load-image-theme-macos.sh \
-  --file "/path/to/image.png" \
-  --appearance auto \
-  --focus-x 0.72 --focus-y 0.45 \
-  --safe-area left --task-mode banner
-```
-
-Reset to the bundled abstract demo:
-
-```bash
-~/.codex/codex-dream-skin-studio/scripts/customize-theme-macos.sh --reset-demo
-```
-
-## License
-
-MIT — see `LICENSE`. Additional notices in `NOTICE.md` cover trademarks,
-runtime Node, user-provided artwork, third-party rights, and assets that are not
-licensed under the software license.
-
-## Sponsors
-
-Thanks to **[passion8.cc](https://passion8.cc/register?aff=TuPe)** for sponsoring this project.
-
-<p align="center">
-  <a href="https://passion8.cc/register?aff=TuPe">
-    <img src="../docs/images/sponsor-passion8.png" alt="Passion8" height="96">
-  </a>
-</p>
-
-<p align="center">
-  <a href="https://passion8.cc/register?aff=TuPe"><strong>Passion8｜感谢 passion8.cc 赞助本项目</strong></a><br>
-  AI API 中转站，支持 Codex / Claude Code / Grok 等工具接入。主题与 API 配置互相独立。
-</p>
-
-## What this is not
-
-- Not an OpenAI product and not a fork of Codex source
-- Not a way to patch or rebrand the official binary
-- Not a Windows build (see `../windows/`)
-- Not an API proxy: theming does not change model providers or API keys
-
-If you use a third-party API relay, configure it separately — keep theme install and API config as two explicit steps.
+macOS `1.5.0` 与 Windows 当前版本对齐，已从旧的全窗口壁纸主题器迁移到
+CODEX Document Mode。旧 `custom-*` 和图片主题文件会保留在主题库中，但不再是
+可运行模式，也不会被自动删除或转换。

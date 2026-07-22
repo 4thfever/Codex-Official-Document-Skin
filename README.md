@@ -1,7 +1,4 @@
-# Codex 公文皮肤
-
-[![支持平台](https://img.shields.io/badge/%E6%94%AF%E6%8C%81%E5%B9%B3%E5%8F%B0-Windows-0078D4?logo=windows&logoColor=white)](./windows/README.md)
-[![开发状态](https://img.shields.io/badge/%E5%BC%80%E5%8F%91%E7%8A%B6%E6%80%81-%E5%AE%9E%E9%AA%8C%E6%80%A7-8B1E1E)](./docs/codex-document-mode-spec.md)
+<h1 align="center">Codex 公文皮肤</h1>
 
 ---
 
@@ -51,8 +48,10 @@
 
 ## 备注
 
-- 当前主要面向 Windows；macOS 版本未经测试，欢迎贡献代码。
-- 具体安装和使用说明见 [Windows 文档](./windows/README.md)。
+- Windows 和 macOS 均提供 CODEX Document Mode；macOS 的自动化 fixture 已覆盖，
+  但仍需要真实 Mac 上的官方 Codex Desktop 完成最终实机验收。
+- 具体安装和使用说明见 [Windows 文档](./windows/README.md) 与
+  [macOS 文档](./macos/README.md)。
 - 参考：[Codex-Dream-Skin](https://github.com/Fei-Away/Codex-Dream-Skin/tree/main)。
 
 ## 致谢

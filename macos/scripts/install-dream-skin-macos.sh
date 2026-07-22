@@ -53,7 +53,9 @@ require_macos_runtime
 ensure_state_root
 codex_is_running && fail "Close Codex before installation so config.toml cannot be rewritten while the app is saving it."
 seed_bundled_presets
-if [ ! -f "$THEME_DIR/theme.json" ]; then
+if [ ! -f "$THEME_DIR/theme.json" ] || \
+  ! /usr/bin/grep -q '"schemaVersion"[[:space:]]*:[[:space:]]*2' "$THEME_DIR/theme.json" 2>/dev/null || \
+  ! /usr/bin/grep -q '"mode"[[:space:]]*:[[:space:]]*"codex-document"' "$THEME_DIR/theme.json" 2>/dev/null; then
   "$SCRIPT_DIR/switch-theme-macos.sh" --id preset-codex-document --no-apply >/dev/null
 fi
 [ -f "$CONFIG_PATH" ] || fail "Codex config not found: $CONFIG_PATH. Launch Codex once, close it, and rerun the installer."
@@ -85,8 +87,6 @@ if [ "$CREATE_LAUNCHERS" = "true" ]; then
   restore_script="$(shell_quote "$SCRIPT_DIR/restore-dream-skin-macos.sh")"
   screenshot="$(shell_quote "$HOME/Desktop/Codex Dream Skin Verification.png")"
   write_launcher "$HOME/Desktop/Codex Dream Skin.command" "exec $start_script --port $PORT --prompt-restart"
-  write_launcher "$HOME/Desktop/Codex Dream Skin - Settings.command" \
-    "exec $start_script --port $PORT --prompt-restart"
   write_launcher "$HOME/Desktop/Codex Dream Skin - Verify.command" "$verify_script --screenshot $screenshot && /usr/bin/open $screenshot"
   write_launcher "$HOME/Desktop/Codex Dream Skin - Restore.command" "exec $restore_script --restore-base-theme --restart-codex"
 fi

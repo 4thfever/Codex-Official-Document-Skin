@@ -1,6 +1,6 @@
 ---
-name: codex-dream-skin-studio
-description: Install, customize, launch, verify, repair, update, or restore Codex Dream Skin Studio on macOS. Use when a user wants to turn a personal image into one continuous full-window Codex wallpaper with adaptive readability layers while preserving the native interface, or needs safe CDP theme troubleshooting and rollback.
+name: codex-document-mode-macos
+description: Install, launch, verify, repair, update, or restore CODEX Document Mode on macOS. Use when a user wants formal document presentation, prose guidance, or circle/cross feedback in official Codex Desktop without modifying the official app.
 compatibility: macOS, official Codex Desktop app, signed bundled Node.js 20 or newer
 ---
 
@@ -11,8 +11,8 @@ This file is an optional Codex capability entry. The delivery is a complete stan
 ## Workflow
 
 1. Run `Install Codex Dream Skin.command` from the complete project folder.
-2. Run `Customize Codex Dream Skin.command`, choose an image in Finder, and enter a theme name.
-3. Verify the live result with `Verify Codex Dream Skin.command`. A pass requires a visible native sidebar and composer, no horizontal overflow, non-interactive decoration, and—on the home route—a continuous wallpaper with live native heading, project controls, and any suggestion cards exposed by the current Codex version.
+2. Run `Start Codex Dream Skin.command` to launch or reapply the bundled `preset-codex-document`.
+3. Verify the live result with `Verify Codex Dream Skin.command`. A pass requires a visible native sidebar and composer, no horizontal overflow, and a document shell for assistant messages.
 4. Restore the official appearance with `Restore Codex Dream Skin.command`.
 
 ## Guardrails
@@ -21,7 +21,9 @@ This file is an optional Codex capability entry. The delivery is a complete stan
 - Use the official Codex app's signed Node.js runtime only after validating its signature, Team ID, architecture, and minimum version.
 - Bind CDP to loopback, verify that the listener belongs to Codex, and reject non-Codex renderer targets.
 - Preserve all native cards, navigation, project selectors, task content, composer controls, and keyboard focus.
-- Theme images must be UI-free wallpapers. Paint one 16:9 image continuously across the window; keep home expressive and task routes quieter. `appearance: auto` follows Codex/native or system appearance rather than image brightness.
+- Document mode never paints a full-window wallpaper. Scope its CSS to assistant document shells and the local composer feedback board.
+- The prose wrapper is temporary and limited to one real native send action; it must restore the visible original draft on send, pause, remove, reload, reapply, restore, and exit.
+- The feedback board recognizes only high-confidence red circles and crosses, appends editable feedback text, and may click only the native send button under the documented empty-draft conditions.
 - Keep decoration at `pointer-events: none`.
 - Require explicit authorization before restarting an already-running Codex instance.
 - Stop an injector only when its recorded PID, executable, command line, and start time all match.
