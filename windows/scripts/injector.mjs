@@ -917,9 +917,7 @@ async function verifySession(session) {
     const suggestions = home?.querySelector('.group\\\\/home-suggestions') ?? null;
     const feedbackBoard = document.getElementById('codex-document-feedback-board');
     const feedbackCanvas = feedbackBoard?.querySelector('canvas.codex-document-feedback-canvas') ?? null;
-    const feedbackAutoSend = feedbackBoard?.querySelector('input[aria-label="自动发送反馈"]') ?? null;
-    const feedbackUndo = feedbackBoard?.querySelector('button[aria-label="撤销最近笔画"]') ?? null;
-    const feedbackClear = feedbackBoard?.querySelector('button[aria-label="清空标记"]') ?? null;
+    const composerNode = document.querySelector('.composer-surface-chrome');
     const cards = suggestions ? [...suggestions.querySelectorAll('button')].map(box) : [];
     const result = {
       installed: document.documentElement.classList.contains('codex-dream-skin') || documentMode,
@@ -940,11 +938,10 @@ async function verifySession(session) {
       suggestionsPresent: Boolean(suggestions),
       hero: box(home?.firstElementChild?.firstElementChild?.firstElementChild),
       cards,
-      composer: box(document.querySelector('.composer-surface-chrome')),
+      composer: box(composerNode),
       feedbackBoard: box(feedbackBoard),
       feedbackCanvas: box(feedbackCanvas),
-      feedbackControls: Boolean(feedbackAutoSend && feedbackUndo && feedbackClear),
-      feedbackInsideComposer: Boolean(feedbackBoard && document.querySelector('.composer-surface-chrome')?.contains(feedbackBoard)),
+      feedbackOutsideComposer: Boolean(feedbackBoard && composerNode && !composerNode.contains(feedbackBoard)),
       sidebar: box(document.querySelector('aside.app-shell-left-panel')),
       viewport: { width: innerWidth, height: innerHeight },
       documentOverflow: {
@@ -956,7 +953,7 @@ async function verifySession(session) {
       result.documentHeaders === result.documentResponses &&
       result.documentFooters === result.documentResponses &&
       result.proseWrapperInstalled &&
-      Boolean(result.feedbackBoard) && Boolean(result.feedbackCanvas) && result.feedbackControls && result.feedbackInsideComposer &&
+      Boolean(result.feedbackBoard) && Boolean(result.feedbackCanvas) && result.feedbackOutsideComposer &&
       (!assistantMarkers.length && !assistantActions.length || result.documentResponses > 0);
     const dreamPass = !result.documentMode && result.chromePresent &&
       result.chromePointerEvents === 'none' &&

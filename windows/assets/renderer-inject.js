@@ -635,8 +635,7 @@ ${PROSE_WRAPPER_END}
   const ensureFeedbackBoard = () => {
     const editable = composeEditable();
     const composer = editable?.closest?.(".composer-surface-chrome");
-    const addFileButton = composer?.querySelector?.('button[aria-label="添加文件等内容"]');
-    if (!editable || !composer || !addFileButton) return;
+    if (!editable || !composer) return;
     if (feedbackTarget === editable && feedbackCleanup) return;
     feedbackCleanup?.();
     feedbackTarget = editable;
@@ -647,32 +646,20 @@ ${PROSE_WRAPPER_END}
     const canvas = document.createElement("canvas");
     canvas.className = "codex-document-feedback-canvas";
     canvas.setAttribute("aria-label", "绘制同意或不同意标记");
-    const undo = document.createElement("button");
-    undo.type = "button";
-    undo.className = "codex-document-feedback-icon";
-    undo.textContent = "↶";
-    undo.setAttribute("aria-label", "撤销最近笔画");
-    undo.title = "撤销最近笔画";
-    const clear = document.createElement("button");
-    clear.type = "button";
-    clear.className = "codex-document-feedback-icon";
-    clear.textContent = "×";
-    clear.setAttribute("aria-label", "清空标记");
-    clear.title = "清空标记";
-    const auto = document.createElement("input");
-    auto.type = "checkbox";
-    auto.className = "codex-document-feedback-auto";
-    auto.checked = config.feedback.autoSend;
-    auto.setAttribute("aria-label", "自动发送反馈");
-    auto.title = "自动发送反馈";
     const status = document.createElement("span");
     status.className = FEEDBACK_STATUS_CLASS;
     status.setAttribute("aria-live", "polite");
-    board.append(canvas, undo, clear, auto, status);
-    addFileButton.parentElement?.insertBefore?.(board, addFileButton);
+    board.append(canvas, status);
+    document.body?.appendChild?.(board);
     if (!board.parentElement) return;
 
-    const state = { strokes: [], current: null, pointerId: null, wasEmpty: false, timer: null, sent: new Set(), disposed: false };
+    const state = { strokes: [], current: null, pointerId: null, wasEmpty: false, timer: null, sent: new Set(), settled: false, disposed: false };
+    const positionBoard = () => {
+      const rect = composer.getBoundingClientRect?.();
+      if (!rect) return;
+      board.style.left = `${Math.max(8, Math.round(rect.left - 116))}px`;
+      board.style.top = `${Math.max(8, Math.round(rect.top))}px`;
+    };
     const redraw = () => {
       const rect = canvas.getBoundingClientRect?.() || { width: 48, height: 48 };
       const width = Math.max(32, rect.width || 48);
@@ -700,11 +687,13 @@ ${PROSE_WRAPPER_END}
       state.strokes = [];
       state.current = null;
       state.sent.clear();
+      state.settled = false;
       status.textContent = "";
       redraw();
     };
     const appendAndMaybeSend = () => {
       if (state.disposed || !state.strokes.length) return;
+      state.settled = true;
       const hash = feedbackHash(state.strokes);
       if (!hash || state.sent.has(hash)) return;
       const result = feedbackClassification(state.strokes);
@@ -714,7 +703,7 @@ ${PROSE_WRAPPER_END}
         return;
       }
       const currentText = composerText(editable);
-      const canAutoSend = state.wasEmpty && !currentText.trim() && auto.checked;
+      const canAutoSend = state.wasEmpty && !currentText.trim() && config.feedback.autoSend;
       const appended = currentText ? `${currentText}${currentText.endsWith("\n") ? "" : "\n"}${feedback}` : feedback;
       if (!setComposerText(editable, appended)) {
         status.textContent = "写入失败";
@@ -750,7 +739,7 @@ ${PROSE_WRAPPER_END}
     };
     const onPointerDown = (event) => {
       if (state.timer) { clearTimeout(state.timer); state.timer = null; }
-      if (state.sent.size) reset();
+      if (state.settled) reset();
       state.wasEmpty = !composerText(editable).trim();
       state.pointerId = event.pointerId;
       state.current = [pointFrom(event)];
@@ -772,13 +761,14 @@ ${PROSE_WRAPPER_END}
       try { canvas.releasePointerCapture?.(event.pointerId); } catch {}
       scheduleRecognition();
     };
-    const onUndo = () => { state.strokes.pop(); state.sent.clear(); status.textContent = ""; redraw(); };
     canvas.addEventListener("pointerdown", onPointerDown);
     canvas.addEventListener("pointermove", onPointerMove);
     canvas.addEventListener("pointerup", onPointerEnd);
     canvas.addEventListener("pointercancel", onPointerEnd);
-    undo.addEventListener("click", onUndo);
-    clear.addEventListener("click", reset);
+    const resizeObserver = typeof ResizeObserver === "function" ? new ResizeObserver(positionBoard) : null;
+    window.addEventListener?.("resize", positionBoard);
+    resizeObserver?.observe?.(composer);
+    positionBoard();
     redraw();
     feedbackCleanup = () => {
       state.disposed = true;
@@ -787,8 +777,8 @@ ${PROSE_WRAPPER_END}
       canvas.removeEventListener?.("pointermove", onPointerMove);
       canvas.removeEventListener?.("pointerup", onPointerEnd);
       canvas.removeEventListener?.("pointercancel", onPointerEnd);
-      undo.removeEventListener?.("click", onUndo);
-      clear.removeEventListener?.("click", reset);
+      window.removeEventListener?.("resize", positionBoard);
+      resizeObserver?.disconnect?.();
       board.remove?.();
       feedbackTarget = null;
     };

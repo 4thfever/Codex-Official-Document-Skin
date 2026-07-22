@@ -557,11 +557,14 @@ assert.doesNotMatch(template, /PROSE_TOGGLE_ID/, "The prose wrapper must not exp
 assert.match(proseGuide, /妥否，请批示/, "The full prose guide must include formal phrase rules.");
 assert.match(template, /feedbackClassification/, "Document mode must provide local circle/cross classification.");
 assert.match(template, /nativeSendButton/, "Auto-send must use the native composer send control.");
-assert.match(template, /state\.wasEmpty && !currentText\.trim\(\) && auto\.checked/,
+assert.match(template, /state\.wasEmpty && !currentText\.trim\(\) && config\.feedback\.autoSend/,
   "Auto-send must require an originally and currently empty composer.");
 assert.match(template, /turns < 2/, "One-stroke V gestures must not be accepted as connected crosses.");
 assert.match(css, /#codex-document-feedback-board/, "Document mode must style its scoped feedback board.");
 assert.match(css, /touch-action: none/, "The feedback canvas must own pointer gestures only within its bounds.");
+assert.match(css, /position: fixed/, "The feedback canvas must sit beside rather than inside the native composer.");
+assert.doesNotMatch(template, /撤销最近笔画|清空标记|自动发送反馈/,
+  "The compact feedback surface must contain only the handwriting canvas.");
 
 const analysisPixels = new Uint8ClampedArray(48 * 12 * 4);
 for (let index = 0; index < 48 * 12; index += 1) {
