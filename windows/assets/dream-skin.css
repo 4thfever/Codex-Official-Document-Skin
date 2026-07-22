@@ -98,6 +98,10 @@ html.codex-document-mode .codex-document-response-footer {
   line-height: 1.9;
 }
 
+html.codex-document-mode .codex-document-response-footer-streaming {
+  display: none !important;
+}
+
 html.codex-document-mode .codex-document-response-closing {
   margin-bottom: 1.45em;
   text-align: left;

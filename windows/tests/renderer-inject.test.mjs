@@ -578,6 +578,13 @@ assert.match(template, /nativeSendButton/, "Auto-send must use the native compos
 assert.match(template, /state\.wasEmpty && !currentText\.trim\(\) && config\.feedback\.autoSend/,
   "Auto-send must require an originally and currently empty composer.");
 assert.match(template, /turns < 2/, "One-stroke V gestures must not be accepted as connected crosses.");
+assert.match(template, /markPendingAssistantStream/, "Document mode must mark a pending assistant turn before native send.");
+assert.match(template, /knownTurns/, "Streaming decoration must claim only a newly created reply group.");
+assert.match(template, /scheduleEnsure\(Boolean\(pendingAssistantStream\)\)/,
+  "Streaming mutations must use the low-latency scheduler.");
+assert.match(template, /\}, 16\);/, "Streaming decoration must be throttled at animation-like cadence.");
+assert.match(template, /DOCUMENT_FOOTER_STREAMING_CLASS/, "Streaming turns must track a hidden document footer state.");
+assert.match(css, /\.codex-document-response-footer-streaming/, "Document CSS must hide closing blocks during streaming.");
 assert.match(css, /#codex-document-feedback-board/, "Document mode must style its scoped feedback board.");
 assert.match(css, /touch-action: none/, "The feedback canvas must own pointer gestures only within its bounds.");
 assert.match(css, /position: fixed/, "The feedback canvas must sit beside rather than inside the native composer.");

@@ -35,6 +35,7 @@
   const DOCUMENT_GREETING_CLASS = "codex-document-response-greeting";
   const DOCUMENT_TITLE_CLASS = "codex-document-response-title";
   const DOCUMENT_FOOTER_CLASS = "codex-document-response-footer";
+  const DOCUMENT_FOOTER_STREAMING_CLASS = "codex-document-response-footer-streaming";
   const DOCUMENT_CLOSING_CLASS = "codex-document-response-closing";
   const DOCUMENT_SIGNATURE_CLASS = "codex-document-response-signature";
   const DOCUMENT_DATE_CLASS = "codex-document-response-date";
@@ -70,6 +71,7 @@ ${PROSE_WRAPPER_END}
   let proseRestore = null;
   let feedbackCleanup = null;
   let feedbackTarget = null;
+  let pendingAssistantStream = null;
   window.__CODEX_DREAM_SKIN_DISABLED__ = false;
 
   const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, Number(value)));
@@ -362,6 +364,7 @@ ${PROSE_WRAPPER_END}
     proseRestore = null;
     feedbackCleanup?.();
     feedbackCleanup = null;
+    pendingAssistantStream = null;
   };
 
   const composeEditable = () => document.querySelector('.composer-surface-chrome [contenteditable="true"], .composer-surface-chrome textarea');
@@ -599,6 +602,10 @@ ${PROSE_WRAPPER_END}
       .filter((node) => node.querySelector?.("svg"));
     return candidates.at(-1) || null;
   };
+  const markPendingAssistantStream = () => {
+    const knownTurns = new Set(document.querySelectorAll?.(ASSISTANT_TURN_SELECTOR) || []);
+    pendingAssistantStream = { knownTurns, startedAt: Date.now(), node: null };
+  };
 
   const ensureProseWrapper = () => {
     if (!config.prose.enabled) return;
@@ -632,10 +639,14 @@ ${PROSE_WRAPPER_END}
     };
     const onClickCapture = (event) => {
       const button = event.target?.closest?.("button");
-      if (!event.defaultPrevented && !button?.disabled && isNativeSendButton(button)) wrapCurrentMessage();
+      if (!event.defaultPrevented && !button?.disabled && isNativeSendButton(button)) {
+        markPendingAssistantStream();
+        wrapCurrentMessage();
+      }
     };
     const onKeyDownCapture = (event) => {
       if (event.defaultPrevented || event.key !== "Enter" || event.shiftKey || event.ctrlKey || event.altKey || event.metaKey || event.isComposing) return;
+      markPendingAssistantStream();
       wrapCurrentMessage();
     };
     composer.addEventListener("click", onClickCapture, true);
@@ -878,7 +889,30 @@ ${PROSE_WRAPPER_END}
     // nearest reply group instead of the action's variable toolbar wrapper.
     for (const action of document.querySelectorAll(ASSISTANT_ACTION_SELECTOR)) {
       const turn = action.closest?.(ASSISTANT_TURN_SELECTOR);
-      if (turn && turn.querySelectorAll(ASSISTANT_ACTION_SELECTOR).length === 1) messages.add(turn);
+      if (turn && turn.querySelectorAll(ASSISTANT_ACTION_SELECTOR).length === 1) {
+        messages.add(turn);
+        if (pendingAssistantStream?.node && (pendingAssistantStream.node === turn ||
+          pendingAssistantStream.node.contains?.(turn) || turn.contains?.(pendingAssistantStream.node))) {
+          pendingAssistantStream = null;
+        }
+      }
+    }
+    // Codex adds the assistant turn before it adds its completion-only action.
+    // A pending send gives us a bounded, structural way to claim that new turn
+    // without reading its text or guessing from streamed content.
+    if (pendingAssistantStream) {
+      if (Date.now() - pendingAssistantStream.startedAt > 45000) {
+        pendingAssistantStream = null;
+      } else if (pendingAssistantStream.node) {
+        messages.add(pendingAssistantStream.node);
+      } else {
+        for (const turn of document.querySelectorAll?.(ASSISTANT_TURN_SELECTOR) || []) {
+          if (pendingAssistantStream.knownTurns.has(turn)) continue;
+          pendingAssistantStream.node = turn;
+          messages.add(turn);
+          break;
+        }
+      }
     }
     for (const message of messages) {
       if (!message?.classList || !message.querySelector || !message.prepend || !message.appendChild) continue;
@@ -930,6 +964,9 @@ ${PROSE_WRAPPER_END}
         footer.setAttribute("aria-hidden", "true");
         message.appendChild(footer);
       }
+      const isStreamingTurn = Boolean(pendingAssistantStream?.node &&
+        (pendingAssistantStream.node === message || pendingAssistantStream.node.contains?.(message) || message.contains?.(pendingAssistantStream.node)));
+      footer.classList.toggle(DOCUMENT_FOOTER_STREAMING_CLASS, isStreamingTurn);
       const legacyFooter = footer.textContent.trim().startsWith("CODEX / Response");
       if (legacyFooter) footer.textContent = "";
       let closing = legacyFooter ? null : footer.querySelector(`:scope > .${DOCUMENT_CLOSING_CLASS}`);
@@ -1071,7 +1108,18 @@ ${PROSE_WRAPPER_END}
   };
 
   const scheduler = { timeout: null };
-  const scheduleEnsure = () => {
+  const scheduleEnsure = (streaming = false) => {
+    if (streaming) {
+      // Stream mutations arrive for nearly every token. Throttle them so the
+      // first assistant container is decorated immediately, rather than
+      // debouncing forever until the stream becomes quiet.
+      if (scheduler.timeout) return;
+      scheduler.timeout = setTimeout(() => {
+        scheduler.timeout = null;
+        ensure();
+      }, 16);
+      return;
+    }
     if (scheduler.timeout) clearTimeout(scheduler.timeout);
     scheduler.timeout = setTimeout(() => {
       scheduler.timeout = null;
@@ -1081,7 +1129,7 @@ ${PROSE_WRAPPER_END}
   observer = new MutationObserver(() => {
     if (samplingNativeShell) return;
     if (config.mode === "codex-document") concealProseWrapper();
-    scheduleEnsure();
+    scheduleEnsure(Boolean(pendingAssistantStream));
   });
   observer.observe(document.documentElement, {
     childList: true,
@@ -1097,6 +1145,7 @@ ${PROSE_WRAPPER_END}
     proseCleanup: () => proseCleanup?.(),
     feedbackCleanup: () => feedbackCleanup?.(),
     feedback: { classify: feedbackClassification, hash: feedbackHash },
+    stream: { snapshot: () => ({ pending: Boolean(pendingAssistantStream), node: Boolean(pendingAssistantStream?.node) }) },
     version: "1.5.0",
   };
   ensure();
