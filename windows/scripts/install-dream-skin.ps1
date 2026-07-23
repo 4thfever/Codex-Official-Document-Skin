@@ -13,18 +13,13 @@ $SkillRoot = Split-Path -Parent $PSScriptRoot
 $operationLock = Enter-DreamSkinOperationLock
 try {
   Assert-DreamSkinPort -Port $Port
-  $null = Get-DreamSkinNodeRuntime
-  $registeredInstalls = @(Get-DreamSkinRegisteredCodexInstalls)
-  if ($registeredInstalls.Count -eq 0) {
-    throw 'The official OpenAI.Codex Store package is not installed or its identity cannot be validated.'
-  }
-  foreach ($registeredCodex in $registeredInstalls) {
-    if ((Get-DreamSkinCodexProcesses -Codex $registeredCodex).Count -gt 0) {
-      throw 'Close Codex before installing Dream Skin so config.toml cannot change during the transaction.'
-    }
-  }
-
   $StateRoot = Join-Path $env:LOCALAPPDATA 'CodexDreamSkin'
+  $preflight = Get-DreamSkinPreflightReport -For install -Port $Port -PortExplicit:$PortExplicit -StateRoot $StateRoot
+  if (-not $preflight.Ready) {
+    Format-DreamSkinPreflightReport -Report $preflight
+    throw 'Dream Skin install prerequisites were not met. No files were changed.'
+  }
+  $registeredInstalls = @(Get-DreamSkinRegisteredCodexInstalls)
   $themePaths = Get-DreamSkinThemePaths -StateRoot $StateRoot
   Ensure-DreamSkinManagedDirectory -Path $themePaths.Root -Root $themePaths.Root
   $StatePath = Join-Path $StateRoot 'state.json'

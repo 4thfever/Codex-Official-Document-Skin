@@ -278,6 +278,30 @@ function Assert-DreamSkinDesktopShapeSupported {
   }
 }
 
+function Test-DreamSkinConfigInstallReadiness {
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory = $true)][string]$ConfigPath
+  )
+
+  if (-not (Test-Path -LiteralPath $ConfigPath -PathType Leaf)) {
+    return [pscustomobject]@{
+      Ready = $false
+      Message = "Codex config not found: $ConfigPath"
+    }
+  }
+  try {
+    $content = Read-DreamSkinUtf8File -Path $ConfigPath
+    Assert-DreamSkinDesktopShapeSupported -Content $content
+    return [pscustomobject]@{ Ready = $true; Message = '' }
+  } catch {
+    return [pscustomobject]@{
+      Ready = $false
+      Message = $_.Exception.Message
+    }
+  }
+}
+
 function Get-DreamSkinDesktopSection {
   param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Content)
 

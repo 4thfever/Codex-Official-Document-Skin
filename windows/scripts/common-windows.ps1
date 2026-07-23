@@ -1,4 +1,4 @@
-. (Join-Path $PSScriptRoot 'config-utf8.ps1')
+﻿. (Join-Path $PSScriptRoot 'config-utf8.ps1')
 
 function Enter-DreamSkinOperationLock {
   $sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
@@ -133,6 +133,7 @@ function Install-DreamSkinRuntimeEngine {
     'assets\renderer-inject.js',
     'scripts\common-windows.ps1',
     'scripts\config-utf8.ps1',
+    'scripts\doctor-dream-skin.ps1',
     'scripts\image-metadata.mjs',
     'scripts\injector.mjs',
     'scripts\install-dream-skin.ps1',
@@ -815,4 +816,153 @@ function Confirm-DreamSkinRestart {
   param([string]$Message)
   $shell = New-Object -ComObject WScript.Shell
   return $shell.Popup($Message, 0, 'Codex Dream Skin', 52) -eq 6
+}
+
+function New-DreamSkinPreflightCheck {
+  param(
+    [Parameter(Mandatory = $true)][string]$Id,
+    [Parameter(Mandatory = $true)][ValidateSet('pass', 'action-required', 'unsupported')][string]$Status,
+    [Parameter(Mandatory = $true)][string]$Message
+  )
+  return [pscustomobject]@{ Id = $Id; Status = $Status; Message = $Message }
+}
+
+function Get-DreamSkinShortcutExecutionPolicy {
+  # The doctor itself can run under process-scoped Bypass. Shortcuts cannot, so
+  # calculate the policy that applies once that transient process scope is gone.
+  try {
+    $policies = @(Get-ExecutionPolicy -List -ErrorAction Stop)
+    foreach ($scope in @('MachinePolicy', 'UserPolicy', 'CurrentUser', 'LocalMachine')) {
+      $entry = @($policies | Where-Object { "$($_.Scope)" -eq $scope } | Select-Object -First 1)
+      if ($entry.Count -gt 0 -and "$($entry[0].ExecutionPolicy)" -ne 'Undefined') {
+        return "$($entry[0].ExecutionPolicy)"
+      }
+    }
+    return 'Restricted'
+  } catch {
+    return $null
+  }
+}
+
+function Get-DreamSkinPreflightReport {
+  [CmdletBinding()]
+  param(
+    [ValidateSet('install', 'start', 'verify')][string]$For = 'install',
+    [int]$Port = 9335,
+    [switch]$PortExplicit,
+    [string]$StateRoot = (Join-Path $env:LOCALAPPDATA 'CodexDreamSkin'),
+    [string]$ConfigPath = (Join-Path $HOME '.codex\config.toml')
+  )
+
+  $checks = @()
+  $installs = @()
+  try {
+    $installs = @(Get-DreamSkinRegisteredCodexInstalls)
+    if ($installs.Count -eq 0) {
+      $checks += New-DreamSkinPreflightCheck -Id 'codex-package' -Status unsupported `
+        -Message '未找到可验证的官方 OpenAI.Codex Store 包。本工具只检测已有的受支持 Codex，不提供安装或配置指导。'
+    } else {
+      $checks += New-DreamSkinPreflightCheck -Id 'codex-package' -Status pass `
+        -Message '已发现可验证的官方 OpenAI.Codex Store 包。'
+    }
+  } catch {
+    $checks += New-DreamSkinPreflightCheck -Id 'codex-package' -Status unsupported `
+      -Message "无法检查官方 Codex Store 包：$($_.Exception.Message)"
+  }
+
+  try {
+    $node = Get-DreamSkinNodeRuntime
+    $checks += New-DreamSkinPreflightCheck -Id 'node' -Status pass `
+      -Message "已发现 Node.js $($node.Version)。"
+  } catch {
+    $checks += New-DreamSkinPreflightCheck -Id 'node' -Status action-required `
+      -Message "需要 Node.js 22 或更高版本并可从 PATH 找到 node.exe。$($_.Exception.Message)"
+  }
+
+  try {
+    $config = Test-DreamSkinConfigInstallReadiness -ConfigPath $ConfigPath
+    if ($config.Ready) {
+      $checks += New-DreamSkinPreflightCheck -Id 'config' -Status pass -Message 'Codex 配置文件可安全读取。'
+    } else {
+      $checks += New-DreamSkinPreflightCheck -Id 'config' -Status action-required `
+        -Message "Codex 配置尚不能由本工具安全处理：$($config.Message) 请先完成已有 Codex 的正常初始化后重试；本工具不会创建或猜测配置。"
+    }
+  } catch {
+    $checks += New-DreamSkinPreflightCheck -Id 'config' -Status action-required `
+      -Message "无法检查 Codex 配置：$($_.Exception.Message)"
+  }
+
+  try {
+    Assert-DreamSkinPort -Port $Port
+    $available = Test-DreamSkinPortAvailable -Port $Port
+    if ($available) {
+      $checks += New-DreamSkinPreflightCheck -Id 'port' -Status pass -Message "端口 $Port 当前可用。"
+    } elseif ($PortExplicit) {
+      $checks += New-DreamSkinPreflightCheck -Id 'port' -Status action-required `
+        -Message "显式指定的端口 $Port 已被占用；请选择其他端口，不要关闭未知进程。"
+    } else {
+      $checks += New-DreamSkinPreflightCheck -Id 'port' -Status pass `
+        -Message "首选端口 $Port 已被占用；启动器会在后续 100 个端口中寻找空闲端口。"
+    }
+  } catch {
+    $checks += New-DreamSkinPreflightCheck -Id 'port' -Status unsupported `
+      -Message "无法安全检查端口：$($_.Exception.Message)"
+  }
+
+  $effectivePolicy = Get-DreamSkinShortcutExecutionPolicy
+  if ($effectivePolicy -in @('Restricted', 'AllSigned')) {
+    $checks += New-DreamSkinPreflightCheck -Id 'execution-policy' -Status action-required `
+      -Message "当前有效 PowerShell 执行策略为 $effectivePolicy，日常 RemoteSigned 快捷方式可能被阻止。请遵守本机或企业策略；本工具不会修改执行策略。"
+  } else {
+    $policyName = if ($effectivePolicy) { $effectivePolicy } else { '未知' }
+    $checks += New-DreamSkinPreflightCheck -Id 'execution-policy' -Status pass `
+      -Message "当前 PowerShell 执行策略为 $policyName。"
+  }
+
+  $statePath = Join-Path $StateRoot 'state.json'
+  try {
+    if (Test-Path -LiteralPath $StateRoot) {
+      if (Get-Command Assert-DreamSkinNoReparseComponents -ErrorAction SilentlyContinue) {
+        Assert-DreamSkinNoReparseComponents -Path $StateRoot
+      }
+      if (Test-Path -LiteralPath $statePath) { $null = Read-DreamSkinState -Path $statePath }
+      $checks += New-DreamSkinPreflightCheck -Id 'state' -Status pass -Message 'Dream Skin 受管目录和已有状态可读取。'
+    } else {
+      $checks += New-DreamSkinPreflightCheck -Id 'state' -Status pass -Message '尚未发现 Dream Skin 受管目录。'
+    }
+  } catch {
+    $checks += New-DreamSkinPreflightCheck -Id 'state' -Status unsupported `
+      -Message "Dream Skin 受管目录或状态不能安全使用：$($_.Exception.Message)"
+  }
+
+  if ($For -eq 'install' -and $installs.Count -gt 0) {
+    $running = @()
+    foreach ($install in $installs) { $running += @(Get-DreamSkinCodexProcesses -Codex $install) }
+    if ($running.Count -gt 0) {
+      $checks += New-DreamSkinPreflightCheck -Id 'codex-process' -Status action-required `
+        -Message '安装前请关闭所有 Codex 窗口，以避免配置和应用状态在安装期间变化。'
+    } else {
+      $checks += New-DreamSkinPreflightCheck -Id 'codex-process' -Status pass -Message '未发现正在运行的受支持 Codex 进程。'
+    }
+  }
+
+  $blocking = @($checks | Where-Object { $_.Status -ne 'pass' })
+  return [pscustomobject]@{
+    SchemaVersion = 1
+    Target = $For
+    Ready = ($blocking.Count -eq 0)
+    Checks = $checks
+  }
+}
+
+function Format-DreamSkinPreflightReport {
+  param([Parameter(Mandatory = $true)][object]$Report)
+  foreach ($check in $Report.Checks) {
+    $label = switch ($check.Status) {
+      'pass' { 'PASS' }
+      'action-required' { 'ACTION REQUIRED' }
+      default { 'UNSUPPORTED' }
+    }
+    Write-Host "[$label] $($check.Message)"
+  }
 }

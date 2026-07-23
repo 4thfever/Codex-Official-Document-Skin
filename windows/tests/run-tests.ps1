@@ -67,6 +67,14 @@ try {
   $restored = Read-DreamSkinUtf8File -Path $configPath
   Assert-TestCondition -Condition ($restored.Contains('测试项目') -and $restored.Contains('appearanceTheme = "dark"')) -Message 'Selective restore overwrote unrelated or post-install settings.'
 
+  $readyConfig = Test-DreamSkinConfigInstallReadiness -ConfigPath $configPath
+  Assert-TestCondition -Condition $readyConfig.Ready -Message 'Preflight rejected a supported config.toml.'
+  $missingConfig = Test-DreamSkinConfigInstallReadiness -ConfigPath (Join-Path $temporaryRoot 'missing-config.toml')
+  Assert-TestCondition -Condition (-not $missingConfig.Ready) -Message 'Preflight accepted a missing config.toml.'
+  $preflight = Get-DreamSkinPreflightReport -For install -Port 9335 -StateRoot (Join-Path $temporaryRoot 'preflight-state') -ConfigPath $configPath
+  Assert-TestCondition -Condition (-not (Test-Path -LiteralPath (Join-Path $temporaryRoot 'preflight-state'))) -Message 'Read-only preflight created its state directory.'
+  Assert-TestCondition -Condition ($null -ne $preflight.Checks -and $preflight.Checks.Count -gt 0) -Message 'Preflight did not return checks.'
+
   $node = Get-DreamSkinNodeRuntime
   foreach ($arguments in @(
     @((Join-Path $Root 'scripts\injector.mjs'), '--self-test'),

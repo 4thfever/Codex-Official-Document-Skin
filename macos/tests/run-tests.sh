@@ -22,6 +22,27 @@ done
 "$NODE" --test "$ROOT/tests"/*.test.mjs
 "$NODE" "$ROOT/scripts/injector.mjs" --check-payload >/dev/null
 
+[ -d "$ROOT/presets/preset-codex-document" ] || {
+  echo "Missing bundled CODEX Document preset." >&2
+  exit 1
+}
+[ ! -d "$ROOT/presets/preset-arina-hashimoto" ] || {
+  echo "Retired Arina preset is still bundled." >&2
+  exit 1
+}
+[ ! -d "$ROOT/presets/preset-gothic-void-crusade" ] || {
+  echo "Retired Gothic preset is still bundled." >&2
+  exit 1
+}
+if /usr/bin/grep -q '"\$presets_root"/preset-\*/' "$ROOT/scripts/common-macos.sh"; then
+  echo "Preset seeding must not glob every preset-* directory." >&2
+  exit 1
+fi
+if ! /usr/bin/grep -q 'preset-codex-document' "$ROOT/scripts/common-macos.sh"; then
+  echo "CODEX Document preset is not seeded explicitly." >&2
+  exit 1
+fi
+
 if [ "${CODEX_DREAM_SKIN_SKIP_DOCTOR:-0}" != "1" ]; then
   "$ROOT/scripts/doctor-macos.sh"
 fi

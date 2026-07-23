@@ -14,6 +14,20 @@ Codex Dream Skin loads an external theme into the official Codex Windows desktop
 
 Run the installer after Codex has fully exited. Normal use does not require administrator access or ownership changes under WindowsApps.
 
+This tool only checks and uses an existing supported environment. It does not install, download, sign in to, or configure Codex, and it does not modify Node.js, `PATH`, or PowerShell execution policy.
+
+## First preflight
+
+Before installation, run this from the repository's `windows` directory:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\doctor-dream-skin.ps1
+```
+
+The preflight is read-only. It checks the official Codex package, Node.js, the configuration file, port availability, execution policy, and existing Dream Skin state. Continue after `PASS`; `ACTION REQUIRED` explains a local prerequisite; `UNSUPPORTED` means the tool cannot safely support the current environment. It never closes Codex, creates files, changes configuration, or changes execution policy.
+
+If the preflight reports a missing or unreadable config file, finish the normal initialization of your existing Codex first, then rerun it. This tool never creates or guesses `%USERPROFILE%\.codex\config.toml`.
+
 ## Install
 
 Open PowerShell in the repository's `windows` directory and run:
@@ -27,6 +41,8 @@ The installer validates the official Codex Store package and Node.js, saves a re
 - `Codex Dream Skin`: launch or reapply the skin.
 - `Codex Dream Skin - Tray`: open the system tray theme controls.
 - `Codex Dream Skin - Restore`: restore the stock appearance and close the saved CDP session.
+
+Before it writes configuration, copies the runtime, or creates shortcuts, the installer reruns the required preflight checks. A failed preflight does not change files or start the tray.
 
 `Bypass` in the install command applies only to that user-initiated installer process. The installer verifies the runtime copy with SHA-256, then clears download-zone markers only from managed PowerShell copies under `%LOCALAPPDATA%\CodexDreamSkin\engine`. Daily shortcuts use `RemoteSigned` and do not override system or enterprise Group Policy.
 
@@ -66,6 +82,8 @@ The verification script confirms:
 - When the current route is home, the themed home structure has loaded.
 
 Next, use the generated screenshot to check horizontal overflow and text contrast. On both the home and normal task routes, manually check the project menu and composer interaction. See [`references/qa-inventory.md`](./references/qa-inventory.md) for the complete visual checklist.
+
+When launch or verification fails, run `doctor-dream-skin.ps1` first. It does not replace launch or verification and does not open a debugging session.
 
 ## Change and save themes
 
@@ -118,6 +136,8 @@ See [`../docs/platforms.md`](../docs/platforms.md) for the complete platform pat
 
 Run `node --version`, confirm that it reports version 22 or newer, and reopen PowerShell so an updated `PATH` takes effect.
 
+You can also rerun `doctor-dream-skin.ps1` for the specific result.
+
 ### The official Codex package is missing
 
 Run:
@@ -127,6 +147,16 @@ Get-AppxPackage -Name OpenAI.Codex
 ```
 
 The scripts accept only a registered official Store package. They do not launch Codex from an arbitrary executable path.
+
+This tool does not provide a Codex installation or configuration workflow.
+
+### The configuration file is missing or unreadable
+
+Run `doctor-dream-skin.ps1` for the reason. If it reports that `%USERPROFILE%\.codex\config.toml` is missing, finish normal initialization of your existing Codex and retry. For unsupported UTF-8 or TOML shapes, the preflight leaves the file unchanged; keep the original file and address the reported condition before installing.
+
+### Execution policy blocks daily shortcuts
+
+The preflight reports the effective PowerShell execution policy. `Bypass` applies only to the user-initiated installer; daily shortcuts still honor `RemoteSigned` and enterprise policy. This tool neither recommends nor performs a policy bypass.
 
 ### The installer asks you to close Codex
 

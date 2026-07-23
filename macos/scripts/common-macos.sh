@@ -203,9 +203,8 @@ finish_client_operation() {
     --port "$port" --timeout-ms "$timeout_ms" 2>>"$INJECTOR_ERROR_LOG"
 }
 
-# Seed bundled preset packs into the user's themes/ library so a fresh install
-# ships with ready-to-use skins. Idempotent (each preset is refreshed in place)
-# and scoped to preset-* ids, so user-made custom-* packs are never touched.
+# Seed only the supported document preset. Retired bundled IDs are removed by
+# exact name; custom-* and every other user-created theme remain untouched.
 seed_bundled_presets() {
   local presets_root="$PROJECT_ROOT/presets"
   [ -d "$presets_root" ] || return 0
@@ -214,24 +213,23 @@ seed_bundled_presets() {
   local retired
   for retired in \
     preset-midnight-aurora preset-sakura-dawn preset-amber-dusk \
-    preset-forest-mist preset-cyber-neon preset-romantic-rose; do
+    preset-forest-mist preset-cyber-neon preset-romantic-rose \
+    preset-arina-hashimoto preset-gothic-void-crusade; do
     /bin/rm -rf "$themes_root/$retired"
   done
-  local src id dest entry
-  for src in "$presets_root"/preset-*/; do
-    [ -d "$src" ] || continue
-    [ -f "${src}theme.json" ] || continue
-    id="$(/usr/bin/basename "$src")"
-    dest="$themes_root/$id"
-    /bin/rm -rf "$dest"
-    /bin/mkdir -p "$dest"
-    /bin/chmod 700 "$dest"
-    for entry in "$src"*; do
-      [ -f "$entry" ] || continue
-      /bin/cp "$entry" "$dest/"
-    done
-    /bin/chmod 600 "$dest"/* 2>/dev/null || true
+  local id="preset-codex-document"
+  local src="$presets_root/$id/"
+  local dest="$themes_root/$id"
+  [ -d "$src" ] && [ -f "${src}theme.json" ] || return 0
+  /bin/rm -rf "$dest"
+  /bin/mkdir -p "$dest"
+  /bin/chmod 700 "$dest"
+  local entry
+  for entry in "$src"*; do
+    [ -f "$entry" ] || continue
+    /bin/cp "$entry" "$dest/"
   done
+  /bin/chmod 600 "$dest"/* 2>/dev/null || true
 }
 
 discover_codex_app() {
